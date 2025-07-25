@@ -1,0 +1,23 @@
+{
+  "name": "concejal360",
+  "version": "1.0.0",
+  "description": "Sistema de transparencia y monitoreo del Concejo de Medellín",
+  "scripts": {
+    "setup": "npm run setup:backend && npm run setup:frontend",
+    "setup:backend": "cd backend/apps-script && npm install",
+    "setup:frontend": "cd frontend && npm install",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "deploy:gas": "cd backend/apps-script && clasp push",
+    "deploy:frontend": "cd frontend && npm run build",
+    "test:backend": "cd backend/apps-script && npm test",
+    "logs:backend": "cd backend/apps-script && clasp logs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tu-usuario/concejal360.git"
+  },
+  "keywords": ["transparency", "government", "scraping", "medellin", "concejo"],
+  "author": "Tu Nombre",
+  "license": "MIT"
+}
