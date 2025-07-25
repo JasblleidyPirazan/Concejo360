@@ -49,7 +49,7 @@ const SHEETS_CONFIG = {
 
 // IDs de Google Drive y Sheets (configurar después)
 const GOOGLE_IDS = {
-  spreadsheetId: '16cSMD3-ymX6vTPkjUBNcJhUgnvSQY6A3faAWI5cvYF8/', // ID del Google Sheet principal
+  spreadsheetId: '16cSMD3-ymX6vTPkjUBNcJhUgnvSQY6A3faAWI5cvYF8', // ID del Google Sheet principal
   driveFolder: '1_y-0IbCNqaoDb23xJfkvjNx5YsUVFjk6',   // ID de la carpeta en Drive para PDFs
   logSheet: 'logs_ejecucion'       // ID del sheet para logs
 };
