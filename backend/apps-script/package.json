@@ -1,0 +1,17 @@
+{
+  "name": "concejal360-backend",
+  "version": "1.0.0",
+  "description": "Backend Google Apps Script para Concejal360",
+  "scripts": {
+    "login": "clasp login",
+    "push": "clasp push",
+    "deploy": "clasp deploy",
+    "logs": "clasp logs",
+    "test": "node tests/run-tests.js",
+    "open": "clasp open"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}
