@@ -488,6 +488,24 @@ function resetInvitacionesBackfill() {
   return { reset: true };
 }
 
+/**
+ * Muestra el resume offset actual de comisiones.
+ */
+function verResumeOffsetComisiones() {
+  const offset = ScraperComisiones.leerResumeOffset();
+  console.log(`Resume offset comisiones = ${offset}`);
+  return offset;
+}
+
+/**
+ * Borra el resume offset de comisiones.
+ */
+function resetComisionesBackfill() {
+  ScraperComisiones.limpiarResumeOffset();
+  console.log('🔄 Resume offset de comisiones reseteado a 0');
+  return { reset: true };
+}
+
 // === Wrappers de trigger (visibles en el dropdown de main.gs) ===
 // Las funciones reales viven en triggers/scheduled.js pero exponemos
 // alias aquí para que aparezcan siempre en el selector de funciones.
