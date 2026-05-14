@@ -46,17 +46,21 @@ const ScraperSesiones = {
     const inicial = this.fetchInicial();
     if (!inicial) return sesionesRaw;
 
-    const { html, cookies, viewState, formName, datatableId } = inicial;
+    const { html, cookies, viewState, formName, datatableId, prependId } = inicial;
     const primeraPagina = this.parsearHtmlSesiones(html);
     sesionesRaw.push(...primeraPagina);
-    console.log(`📄 Página 1: ${primeraPagina.length} sesiones`);
+    console.log(`📄 Página 1: ${primeraPagina.length} sesiones (formName=${formName}, prependId=${prependId}, ViewState=${viewState ? 'ok' : 'missing'})`);
 
     if (!formName || !viewState) {
+      this.logDiagnostico(html);
       console.log('⚠️ No se pudo extraer formName/ViewState — devuelvo solo página 1');
       return sesionesRaw;
     }
-    if (primeraPagina.length < this.config.pageSize) return sesionesRaw;
+    if (primeraPagina.length === 0) return sesionesRaw;
 
+    // pageSize dinámico: si la pagina inicial trajo N filas, mantengo ese tamaño para
+    // que PrimeFaces no devuelva una página corta intermedia que rompa el loop.
+    const pageSize = primeraPagina.length;
     let first = primeraPagina.length;
     let viewStateActual = viewState;
     let pagina = 2;
@@ -64,7 +68,7 @@ const ScraperSesiones = {
     while (pagina <= this.config.maxPaginas) {
       Utilities.sleep(this.config.delayBetweenPages);
 
-      const resp = this.fetchPaginaAjax({ first, cookies, viewState: viewStateActual, formName, datatableId });
+      const resp = this.fetchPaginaAjax({ first, cookies, viewState: viewStateActual, formName, datatableId, prependId, pageSize });
       if (!resp) break;
 
       const filas = this.parsearHtmlSesiones(resp.html);
@@ -76,7 +80,7 @@ const ScraperSesiones = {
       first += filas.length;
       pagina++;
 
-      if (filas.length < this.config.pageSize) break;
+      if (filas.length < pageSize) break;
     }
 
     if (pagina > this.config.maxPaginas) {
@@ -107,8 +111,13 @@ const ScraperSesiones = {
       const cookies = this.extraerCookies(response);
       const viewState = this.extraerViewState(html);
       const formName = this.extraerFormName(html, this.config.datatableId);
+      // Si el id renderizado del tbody trae prefijo (formName:proposiciondt-id_data),
+      // PrimeFaces está con prependId=true → debemos referenciar la datatable con prefijo.
+      const prependId = formName
+        ? html.indexOf(`id="${formName}:${this.config.datatableId}_data"`) !== -1
+        : false;
 
-      return { html, cookies, viewState, formName, datatableId: this.config.datatableId };
+      return { html, cookies, viewState, formName, datatableId: this.config.datatableId, prependId };
     } catch (error) {
       console.log(`❌ Error en fetchInicial: ${error.message}`);
       return null;
@@ -119,9 +128,9 @@ const ScraperSesiones = {
    * POST partial-ajax a PrimeFaces para traer la siguiente página de la datatable.
    * @returns {Object|null} { html, viewState } o null si falla
    */
-  fetchPaginaAjax({ first, cookies, viewState, formName, datatableId }) {
+  fetchPaginaAjax({ first, cookies, viewState, formName, datatableId, prependId, pageSize }) {
     try {
-      const dtRef = `${formName}:${datatableId}`;
+      const dtRef = prependId ? `${formName}:${datatableId}` : datatableId;
       const payload = {
         'javax.faces.partial.ajax': 'true',
         'javax.faces.source': dtRef,
@@ -129,7 +138,7 @@ const ScraperSesiones = {
         'javax.faces.partial.render': dtRef,
         [`${dtRef}_pagination`]: 'true',
         [`${dtRef}_first`]: String(first),
-        [`${dtRef}_rows`]: String(this.config.pageSize),
+        [`${dtRef}_rows`]: String(pageSize),
         [`${dtRef}_encodeFeature`]: 'true',
         [formName]: formName,
         'javax.faces.ViewState': viewState
@@ -193,17 +202,50 @@ const ScraperSesiones = {
   },
 
   extraerViewState(html) {
-    const m = html.match(/name="javax\.faces\.ViewState"[^>]*value="([^"]+)"/) ||
-              html.match(/id="[^"]*javax\.faces\.ViewState[^"]*"[^>]*value="([^"]+)"/);
-    return m ? m[1] : null;
+    // PrimeFaces puede emitir ViewState con atributos en distinto orden.
+    const patrones = [
+      /name="javax\.faces\.ViewState"[^>]*value="([^"]+)"/,
+      /value="([^"]+)"[^>]*name="javax\.faces\.ViewState"/,
+      /id="[^"]*javax\.faces\.ViewState[^"]*"[^>]*value="([^"]+)"/,
+      /value="([^"]+)"[^>]*id="[^"]*javax\.faces\.ViewState[^"]*"/
+    ];
+    for (const re of patrones) {
+      const m = html.match(re);
+      if (m) return m[1];
+    }
+    return null;
   },
 
   extraerFormName(html, datatableId) {
-    // PrimeFaces emite id="formName:proposiciondt-id" en el contenedor de la datatable.
-    // Buscamos cualquier id que termine en ":datatableId" y nos quedamos con el prefijo.
-    const re = new RegExp(`id="([^":]+):${datatableId}(?:_data)?"`);
-    const m = html.match(re);
-    return m ? m[1] : null;
+    // 1) prependId=true: existe un id "formName:datatableId" o "formName:datatableId_data".
+    const reConPrefijo = new RegExp(`id="([^":\\s]+):${datatableId}(?:_data)?"`);
+    const conPrefijo = html.match(reConPrefijo);
+    if (conPrefijo) return conPrefijo[1];
+
+    // 2) prependId=false: el tbody trae id bare. Hay que buscar el <form> que contiene
+    //    la datatable y leer su id.
+    const reForm = /<form[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/form>/g;
+    let m;
+    while ((m = reForm.exec(html)) !== null) {
+      if (m[2].indexOf(datatableId) !== -1) return m[1];
+    }
+    return null;
+  },
+
+  /**
+   * Imprime metadatos del HTML cuando falla la extracción de formName/ViewState.
+   * Útil para depurar cambios estructurales en SIMI sin tener que correr diagSesiones.
+   */
+  logDiagnostico(html) {
+    try {
+      const formas = (html.match(/<form[^>]*\bid="[^"]+"/g) || []).slice(0, 5);
+      const tieneVS = /javax\.faces\.ViewState/.test(html);
+      const tieneDT = html.indexOf(this.config.datatableId) !== -1;
+      console.log(`🔍 Diagnóstico: html ${html.length} bytes, contains ViewState=${tieneVS}, contains ${this.config.datatableId}=${tieneDT}`);
+      console.log(`🔍 Forms detectados: ${formas.length ? formas.join(' | ') : '(ninguno)'}`);
+    } catch (e) {
+      console.log(`🔍 logDiagnostico falló: ${e.message}`);
+    }
   },
 
   extraerUpdate(xml, datatableId) {
