@@ -434,6 +434,14 @@ function resetSesionesBackfill() {
   return { reset: true };
 }
 
+// === Wrappers de trigger (visibles en el dropdown de main.gs) ===
+// Las funciones reales viven en triggers/scheduled.js pero exponemos
+// alias aquí para que aparezcan siempre en el selector de funciones.
+
+function instalarTriggerSesiones12h() { return setupTriggerSesiones12h(); }
+function quitarTriggerSesiones()      { return removerTriggerSesiones(); }
+function verTriggers()                { return listarTriggers(); }
+
 /**
  * Diagnostico: fetches la URL del scraper de sesiones y reporta
  * que HTML llega, IDs presentes, tablas, y si aparece la data esperada.

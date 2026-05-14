@@ -30,7 +30,16 @@ const SHEETS_CONFIG = {
   proyectos: {
     nombre: 'proyectos_maestro',
     campos: ['numero', 'titulo', 'proponentes', 'estado', 'fecha', 'comision'],
-    tipos: ['string', 'string', 'array', 'string', 'date', 'string']
+    tipos: ['string', 'string', 'string', 'string', 'date', 'string'],
+    // numero ya incluye año (ej. "89-2026") asi que es unico
+    claveUnica: ['numero']
+  },
+  proyectos_detalle: {
+    nombre: 'proyectos_detalle',
+    campos: ['numero', 'titulo', 'rol', 'concejal'],
+    tipos: ['string', 'string', 'string', 'string'],
+    // Cada combinacion (proyecto, rol, concejal) es unica
+    claveUnica: ['numero', 'rol', 'concejal']
   },
   acuerdos: {
     nombre: 'acuerdos_maestro', 
