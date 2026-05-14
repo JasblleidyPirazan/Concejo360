@@ -434,6 +434,24 @@ function resetSesionesBackfill() {
   return { reset: true };
 }
 
+/**
+ * Muestra el resume offset actual de acuerdos.
+ */
+function verResumeOffsetAcuerdos() {
+  const offset = ScraperAcuerdos.leerResumeOffset();
+  console.log(`Resume offset acuerdos = ${offset}`);
+  return offset;
+}
+
+/**
+ * Borra el resume offset de acuerdos. Forzar restart desde page 1.
+ */
+function resetAcuerdosBackfill() {
+  ScraperAcuerdos.limpiarResumeOffset();
+  console.log('🔄 Resume offset de acuerdos reseteado a 0');
+  return { reset: true };
+}
+
 // === Wrappers de trigger (visibles en el dropdown de main.gs) ===
 // Las funciones reales viven en triggers/scheduled.js pero exponemos
 // alias aquí para que aparezcan siempre en el selector de funciones.

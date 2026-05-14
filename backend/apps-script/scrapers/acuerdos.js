@@ -31,10 +31,10 @@ const ScraperAcuerdos = {
     concejalesSheetName: 'acuerdos_concejales',
     datatableId: 'proyectosdt-id', // ¡con hyphen, distinto de proyectos.xhtml!
     detailContainerIds: ['pa-invitados-id', 'pa-detail-id'],
-    delayBetweenPages: 600,
-    delayBetweenDetails: 250,
+    delayBetweenPages: 400,
+    delayBetweenDetails: 100,
     chunkAcuerdos: 30,
-    maxPaginas: 200,
+    maxPaginas: 300,
     maxElapsedMs: 4.5 * 60 * 1000
   },
 
@@ -137,8 +137,22 @@ const ScraperAcuerdos = {
     viewStateActual = this.procesarFilasListado(primerasFilas, { cookies, viewState: viewStateActual, viewStateName, formName, prependId });
 
     const pageSize = primerasFilas.length;
-    let first = pageSize;
-    let pagina = 2;
+
+    // Resume: si hay offset persistido, saltamos directo a esa página vía AJAX.
+    // Igual que en sesiones: siempre se extrae página 1 (para refrescar las más
+    // recientes y detectar cambios de estado), y el loop arranca desde resumeFrom.
+    const resumeFrom = this.leerResumeOffset();
+    let first;
+    let pagina;
+    if (resumeFrom > pageSize) {
+      first = resumeFrom;
+      pagina = Math.floor(resumeFrom / pageSize) + 1;
+      console.log(`▶️ Reanudando backfill desde first=${resumeFrom} (página ~${pagina}). Saltando ${resumeFrom - pageSize} acuerdos ya extraídos.`);
+    } else {
+      first = pageSize;
+      pagina = 2;
+    }
+
     let reintentos = 0;
     let salida = 'fin natural';
     let acuerdosProcesados = primerasFilas.length;
@@ -192,6 +206,46 @@ const ScraperAcuerdos = {
     if (pagina > this.config.maxPaginas) salida = `maxPaginas ${this.config.maxPaginas}`;
     const elapsed = Math.round((Date.now() - tStart) / 1000);
     console.log(`🏁 Extracción: ${pagina - 1} página(s), ${acuerdosProcesados} acuerdos, ${elapsed}s — salida: ${salida}`);
+
+    // Persistir / limpiar resume offset según razón de salida
+    const hitBudget = salida.indexOf('time budget') === 0 || salida.indexOf('maxPaginas') === 0;
+    if (hitBudget) {
+      this.guardarResumeOffset(first);
+    } else if (resumeFrom > 0) {
+      console.log(`🎉 Backfill acuerdos completado — resume offset limpiado`);
+      this.limpiarResumeOffset();
+    } else {
+      this.limpiarResumeOffset();
+    }
+  },
+
+  // === Resume offset (PropertiesService) ===
+
+  RESUME_KEY: 'acuerdos_resumeFrom',
+
+  leerResumeOffset() {
+    try {
+      const v = PropertiesService.getScriptProperties().getProperty(this.RESUME_KEY);
+      const n = parseInt(v || '0', 10);
+      return isNaN(n) ? 0 : n;
+    } catch (e) {
+      return 0;
+    }
+  },
+
+  guardarResumeOffset(first) {
+    try {
+      PropertiesService.getScriptProperties().setProperty(this.RESUME_KEY, String(first));
+      console.log(`💾 Resume offset acuerdos = ${first} (próxima corrida continúa desde aquí)`);
+    } catch (e) {
+      console.log(`⚠️ guardarResumeOffset falló: ${e.message}`);
+    }
+  },
+
+  limpiarResumeOffset() {
+    try {
+      PropertiesService.getScriptProperties().deleteProperty(this.RESUME_KEY);
+    } catch (e) { /* */ }
   },
 
   /**
