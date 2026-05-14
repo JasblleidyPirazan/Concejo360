@@ -46,13 +46,13 @@ const ScraperSesiones = {
     const inicial = this.fetchInicial();
     if (!inicial) return sesionesRaw;
 
-    const { html, cookies, viewState, formName, datatableId, prependId } = inicial;
+    const { html, cookies, viewState, viewStateName, formName, datatableId, prependId } = inicial;
     const primeraPagina = this.parsearHtmlSesiones(html);
     sesionesRaw.push(...primeraPagina);
-    console.log(`📄 Página 1: ${primeraPagina.length} sesiones (formName=${formName}, prependId=${prependId}, ViewState=${viewState ? 'ok' : 'missing'})`);
+    console.log(`📄 Página 1: ${primeraPagina.length} sesiones (formName=${formName}, prependId=${prependId}, ViewState=${viewState ? 'ok' : 'missing'}, vsName=${viewStateName})`);
 
     if (!formName || !viewState) {
-      this.logDiagnostico(html);
+      this.logDiagnostico(html, formName);
       console.log('⚠️ No se pudo extraer formName/ViewState — devuelvo solo página 1');
       return sesionesRaw;
     }
@@ -68,7 +68,7 @@ const ScraperSesiones = {
     while (pagina <= this.config.maxPaginas) {
       Utilities.sleep(this.config.delayBetweenPages);
 
-      const resp = this.fetchPaginaAjax({ first, cookies, viewState: viewStateActual, formName, datatableId, prependId, pageSize });
+      const resp = this.fetchPaginaAjax({ first, cookies, viewState: viewStateActual, viewStateName, formName, datatableId, prependId, pageSize });
       if (!resp) break;
 
       const filas = this.parsearHtmlSesiones(resp.html);
@@ -110,6 +110,7 @@ const ScraperSesiones = {
       const html = response.getContentText();
       const cookies = this.extraerCookies(response);
       const viewState = this.extraerViewState(html);
+      const viewStateName = this.detectarNombreViewState(html);
       const formName = this.extraerFormName(html, this.config.datatableId);
       // Si el id renderizado del tbody trae prefijo (formName:proposiciondt-id_data),
       // PrimeFaces está con prependId=true → debemos referenciar la datatable con prefijo.
@@ -117,7 +118,7 @@ const ScraperSesiones = {
         ? html.indexOf(`id="${formName}:${this.config.datatableId}_data"`) !== -1
         : false;
 
-      return { html, cookies, viewState, formName, datatableId: this.config.datatableId, prependId };
+      return { html, cookies, viewState, viewStateName, formName, datatableId: this.config.datatableId, prependId };
     } catch (error) {
       console.log(`❌ Error en fetchInicial: ${error.message}`);
       return null;
@@ -128,20 +129,21 @@ const ScraperSesiones = {
    * POST partial-ajax a PrimeFaces para traer la siguiente página de la datatable.
    * @returns {Object|null} { html, viewState } o null si falla
    */
-  fetchPaginaAjax({ first, cookies, viewState, formName, datatableId, prependId, pageSize }) {
+  fetchPaginaAjax({ first, cookies, viewState, viewStateName, formName, datatableId, prependId, pageSize }) {
     try {
       const dtRef = prependId ? `${formName}:${datatableId}` : datatableId;
+      const partialPrefix = String(viewStateName).startsWith('jakarta') ? 'jakarta.faces' : 'javax.faces';
       const payload = {
-        'javax.faces.partial.ajax': 'true',
-        'javax.faces.source': dtRef,
-        'javax.faces.partial.execute': dtRef,
-        'javax.faces.partial.render': dtRef,
+        [`${partialPrefix}.partial.ajax`]: 'true',
+        [`${partialPrefix}.source`]: dtRef,
+        [`${partialPrefix}.partial.execute`]: dtRef,
+        [`${partialPrefix}.partial.render`]: dtRef,
         [`${dtRef}_pagination`]: 'true',
         [`${dtRef}_first`]: String(first),
         [`${dtRef}_rows`]: String(pageSize),
         [`${dtRef}_encodeFeature`]: 'true',
         [formName]: formName,
-        'javax.faces.ViewState': viewState
+        [viewStateName]: viewState
       };
 
       const response = UrlFetchApp.fetch(this.config.url, {
@@ -202,18 +204,34 @@ const ScraperSesiones = {
   },
 
   extraerViewState(html) {
-    // PrimeFaces puede emitir ViewState con atributos en distinto orden.
-    const patrones = [
-      /name="javax\.faces\.ViewState"[^>]*value="([^"]+)"/,
-      /value="([^"]+)"[^>]*name="javax\.faces\.ViewState"/,
-      /id="[^"]*javax\.faces\.ViewState[^"]*"[^>]*value="([^"]+)"/,
-      /value="([^"]+)"[^>]*id="[^"]*javax\.faces\.ViewState[^"]*"/
-    ];
-    for (const re of patrones) {
-      const m = html.match(re);
-      if (m) return m[1];
+    // Mojarra/MyFaces (javax) y Jakarta Faces 4+ (jakarta), atributos en cualquier orden.
+    const nombres = ['javax.faces.ViewState', 'jakarta.faces.ViewState'];
+    for (const nombre of nombres) {
+      const esc = nombre.replace(/\./g, '\\.');
+      const patrones = [
+        new RegExp(`name="${esc}"[^>]*value="([^"]+)"`, 'i'),
+        new RegExp(`value="([^"]+)"[^>]*name="${esc}"`, 'i'),
+        new RegExp(`id="[^"]*${esc}[^"]*"[^>]*value="([^"]+)"`, 'i'),
+        new RegExp(`value="([^"]+)"[^>]*id="[^"]*${esc}[^"]*"`, 'i')
+      ];
+      for (const re of patrones) {
+        const m = html.match(re);
+        if (m) return m[1];
+      }
     }
-    return null;
+    // Fallback: cualquier input cuyo name termine en .ViewState
+    const fallback = html.match(/name="[^"]*\.ViewState"[^>]*value="([^"]+)"/i) ||
+                     html.match(/value="([^"]+)"[^>]*name="[^"]*\.ViewState"/i);
+    return fallback ? fallback[1] : null;
+  },
+
+  /**
+   * Nombre del campo ViewState a usar en el payload AJAX (javax vs jakarta).
+   * Inspecciona el HTML para decidir; default = javax.
+   */
+  detectarNombreViewState(html) {
+    if (/jakarta\.faces\.ViewState/i.test(html)) return 'jakarta.faces.ViewState';
+    return 'javax.faces.ViewState';
   },
 
   extraerFormName(html, datatableId) {
@@ -236,13 +254,29 @@ const ScraperSesiones = {
    * Imprime metadatos del HTML cuando falla la extracción de formName/ViewState.
    * Útil para depurar cambios estructurales en SIMI sin tener que correr diagSesiones.
    */
-  logDiagnostico(html) {
+  logDiagnostico(html, formName) {
     try {
       const formas = (html.match(/<form[^>]*\bid="[^"]+"/g) || []).slice(0, 5);
-      const tieneVS = /javax\.faces\.ViewState/.test(html);
+      const tieneJavax = /javax\.faces\.ViewState/i.test(html);
+      const tieneJakarta = /jakarta\.faces\.ViewState/i.test(html);
+      const tieneVSgenerico = /viewstate/i.test(html);
       const tieneDT = html.indexOf(this.config.datatableId) !== -1;
-      console.log(`🔍 Diagnóstico: html ${html.length} bytes, contains ViewState=${tieneVS}, contains ${this.config.datatableId}=${tieneDT}`);
-      console.log(`🔍 Forms detectados: ${formas.length ? formas.join(' | ') : '(ninguno)'}`);
+      console.log(`🔍 html ${html.length}b | javax.ViewState=${tieneJavax} | jakarta.ViewState=${tieneJakarta} | viewstate(any)=${tieneVSgenerico} | ${this.config.datatableId}=${tieneDT}`);
+      console.log(`🔍 Forms: ${formas.length ? formas.join(' | ') : '(ninguno)'}`);
+
+      // Dump hidden inputs dentro del form detectado, para identificar como nombran el ViewState
+      if (formName) {
+        const escForm = formName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const reForm = new RegExp(`<form[^>]*\\bid="${escForm}"[^>]*>([\\s\\S]*?)<\\/form>`);
+        const m = html.match(reForm);
+        if (m) {
+          const inputs = (m[1].match(/<input[^>]*type="hidden"[^>]*>/gi) || []).slice(0, 8);
+          console.log(`🔍 Hidden inputs en form "${formName}": ${inputs.length}`);
+          inputs.forEach((inp, i) => console.log(`  [${i}] ${inp.substring(0, 240)}`));
+        } else {
+          console.log(`🔍 form "${formName}" no matcheo en regex de dump`);
+        }
+      }
     } catch (e) {
       console.log(`🔍 logDiagnostico falló: ${e.message}`);
     }
