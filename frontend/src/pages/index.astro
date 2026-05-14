@@ -1,0 +1,45 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ModulePlaceholder from '../components/ModulePlaceholder.astro';
+import SesionesStats from '../components/SesionesStats.jsx';
+
+const modulos = [
+  { nombre: 'Proyectos', descripcion: 'Proyectos de acuerdo radicados en el Concejo.', icono: '📋' },
+  { nombre: 'Acuerdos', descripcion: 'Acuerdos aprobados y vigentes.', icono: '⚖️' },
+  { nombre: 'Comisiones', descripcion: 'Trabajo de las comisiones permanentes.', icono: '👥' },
+  { nombre: 'Invitaciones', descripcion: 'Invitaciones cursadas por la corporación.', icono: '✉️' },
+  { nombre: 'Citaciones', descripcion: 'Citaciones a funcionarios y debates de control.', icono: '📣' },
+];
+---
+
+<Layout>
+  <section class="mb-10">
+    <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">MVP · Transparencia</p>
+    <h1 class="mt-2 text-3xl md:text-4xl font-bold text-slate-900">
+      Concejo de Medellín, al alcance de la ciudadanía
+    </h1>
+    <p class="mt-3 max-w-2xl text-slate-600">
+      Visualiza estadísticas clave del Concejo: sesiones, asistencia, lugares y publicación de
+      actas. Los datos se actualizan automáticamente desde el SIMI.
+    </p>
+  </section>
+
+  <section class="mb-12">
+    <SesionesStats client:load />
+  </section>
+
+  <section aria-labelledby="otros-modulos" class="mb-4">
+    <div class="mb-4">
+      <h2 id="otros-modulos" class="text-2xl font-semibold text-slate-900">Otros módulos</h2>
+      <p class="text-sm text-slate-600">
+        Estos módulos estarán disponibles en próximas iteraciones a medida que se completen los
+        scrapers.
+      </p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {modulos.map((m) => (
+        <ModulePlaceholder nombre={m.nombre} descripcion={m.descripcion} icono={m.icono} />
+      ))}
+    </div>
+  </section>
+</Layout>
