@@ -18,7 +18,9 @@ const SHEETS_CONFIG = {
   sesiones: {
     nombre: 'sesiones_maestro',
     campos: ['numero', 'fecha', 'hora', 'temas', 'detalle', 'lugar', 'estado', 'fecha_extraccion'],
-    tipos: ['string', 'date', 'string', 'string', 'string', 'string', 'string', 'date']
+    tipos: ['string', 'date', 'string', 'string', 'string', 'string', 'string', 'date'],
+    // numero NO es unico (se resetea por año/período en SIMI). Composite key con fecha.
+    claveUnica: ['numero', 'fecha']
   },
   sesiones_cambios: {
     nombre: 'sesiones_cambios',

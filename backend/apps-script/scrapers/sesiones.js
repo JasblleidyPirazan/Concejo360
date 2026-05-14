@@ -89,10 +89,10 @@ const ScraperSesiones = {
     ctx.stats.errores += stats.errores || 0;
     ctx.stats.total += procesados.length;
 
-    // Refrescar snapshot con los estados recién escritos
+    // Refrescar snapshot con los estados recién escritos (clave compuesta)
     for (const p of procesados) {
-      const num = String(p.numero == null ? '' : p.numero).trim();
-      if (num) ctx.estadosPrevios.set(num, String(p.estado == null ? '' : p.estado).trim());
+      const k = this.claveSesion(p);
+      if (k !== '|') ctx.estadosPrevios.set(k, String(p.estado == null ? '' : p.estado).trim());
     }
 
     console.log(`💾 Chunk save: +${procesados.length} filas (nuevos=${stats.nuevos}, actualizados=${stats.actualizados}, total=${ctx.stats.total})`);
@@ -551,7 +551,19 @@ const ScraperSesiones = {
   },
 
   /**
-   * Construye Map<numero, estado> desde el sheet maestro actual.
+   * Clave compuesta única para una sesión (numero + fecha).
+   * SIMI resetea numero por período, así que numero solo no es único.
+   */
+  claveSesion(s) {
+    const num = String(s == null || s.numero == null ? '' : s.numero).trim();
+    const fechaVal = s && s.fecha instanceof Date
+      ? String(s.fecha.getTime())
+      : String(s == null || s.fecha == null ? '' : s.fecha).trim();
+    return `${num}|${fechaVal}`;
+  },
+
+  /**
+   * Construye Map<claveCompuesta, estado> desde el sheet maestro actual.
    * Si la hoja no existe (primera corrida), devuelve un Map vacío.
    */
   cargarEstadosPrevios() {
@@ -559,9 +571,9 @@ const ScraperSesiones = {
     try {
       const datos = SheetsUtils.obtener(this.config.sheetName);
       for (const d of datos) {
-        const num = String(d.numero == null ? '' : d.numero).trim();
-        if (!num) continue;
-        estados.set(num, String(d.estado == null ? '' : d.estado).trim());
+        const k = this.claveSesion(d);
+        if (k === '|') continue;
+        estados.set(k, String(d.estado == null ? '' : d.estado).trim());
       }
     } catch (e) {
       console.log(`⚠️ No se pudo cargar estados previos: ${e.message}`);
@@ -577,13 +589,13 @@ const ScraperSesiones = {
     const cambios = [];
     const fechaCambio = new Date();
     for (const s of sesionesNuevas) {
-      const num = String(s.numero || '').trim();
-      if (!num || !estadosPrevios.has(num)) continue;
-      const anterior = estadosPrevios.get(num);
+      const k = this.claveSesion(s);
+      if (k === '|' || !estadosPrevios.has(k)) continue;
+      const anterior = estadosPrevios.get(k);
       const nuevo = String(s.estado || '').trim();
       if (anterior === nuevo) continue;
       cambios.push({
-        numero: num,
+        numero: String(s.numero || '').trim(),
         estado_anterior: anterior,
         estado_nuevo: nuevo,
         fecha_cambio: fechaCambio,

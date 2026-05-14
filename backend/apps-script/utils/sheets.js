@@ -79,25 +79,43 @@ const SheetsUtils = {
         filas = [];
       }
 
-      // 2) Determinar columna clave (numero o consecutivo)
-      const claveCol = headers.indexOf('numero') !== -1 ? 'numero'
-                       : headers.indexOf('consecutivo') !== -1 ? 'consecutivo'
-                       : null;
-      if (!claveCol) throw new Error(`No se encontro columna clave (numero/consecutivo) en ${sheetName}`);
-      const claveIdx = headers.indexOf(claveCol);
+      // 2) Determinar columnas clave (puede ser compuesta vía config.claveUnica).
+      //    Default: 'numero' o 'consecutivo' simple si la config no especifica.
+      const claveCampos = (config && Array.isArray(config.claveUnica) && config.claveUnica.length > 0)
+        ? config.claveUnica
+        : (headers.indexOf('numero') !== -1 ? ['numero']
+           : headers.indexOf('consecutivo') !== -1 ? ['consecutivo']
+           : null);
+      if (!claveCampos) throw new Error(`No se encontro columna clave (numero/consecutivo) en ${sheetName}`);
+
+      // Indices de cada campo clave en el array de headers
+      const claveIdxs = claveCampos.map(c => headers.indexOf(c));
+      for (let i = 0; i < claveIdxs.length; i++) {
+        if (claveIdxs[i] === -1) throw new Error(`Campo de clave '${claveCampos[i]}' no esta en headers de ${sheetName}`);
+      }
+
+      // Normaliza un valor para que la clave sea estable (Date → timestamp, resto → string trim)
+      const normalizar = (v) => {
+        if (v == null) return '';
+        if (v instanceof Date) return String(v.getTime());
+        return String(v).trim();
+      };
+      const buildKeyRow = (row) => claveIdxs.map(i => normalizar(row[i])).join('|');
+      const buildKeyDato = (dato) => claveCampos.map(c => normalizar(dato[c])).join('|');
 
       // 3) Indice clave -> rowIndex (en filas[])
       const indice = new Map();
+      const claveVacia = claveCampos.map(() => '').join('|');
       for (let i = 0; i < filas.length; i++) {
-        const k = String(filas[i][claveIdx] == null ? '' : filas[i][claveIdx]).trim();
-        if (k) indice.set(k, i);
+        const k = buildKeyRow(filas[i]);
+        if (k && k !== claveVacia) indice.set(k, i);
       }
 
       // 4) Aplicar upsert en memoria
       const stats = { nuevos: 0, actualizados: 0, errores: 0 };
       for (const dato of datos) {
-        const k = String(dato[claveCol] == null ? '' : dato[claveCol]).trim();
-        if (!k) { stats.errores++; continue; }
+        const k = buildKeyDato(dato);
+        if (!k || k === claveVacia) { stats.errores++; continue; }
 
         if (indice.has(k)) {
           // Update merge-friendly: solo pisar columnas presentes en dato
