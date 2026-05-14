@@ -17,52 +17,63 @@ const SCRAPERS = {
 /**
  * Maneja requests POST desde el frontend
  * @param {Object} e - Event object con postData
- * @returns {Object} Respuesta JSON
+ * @returns {GoogleAppsScript.Content.TextOutput} Respuesta JSON
  */
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     const { action, type, params } = data;
-    
+
     switch(action) {
       case 'scrape':
-        return ejecutarScraping(type, params);
+        return jsonOutput(ejecutarScraping(type, params));
       case 'scrape_all':
-        return ejecutarScrapingCompleto();
+        return jsonOutput(ejecutarScrapingCompleto());
       case 'test':
-        return ejecutarTest(type);
+        return jsonOutput(ejecutarTest(type));
       case 'status':
-        return obtenerEstadoSistema();
+        return jsonOutput(obtenerEstadoSistema());
       default:
-        return respuestaError('Acción no válida', 'INVALID_ACTION');
+        return jsonOutput(respuestaError('Acción no válida', 'INVALID_ACTION'));
     }
   } catch (error) {
-    return respuestaError(`Error procesando request: ${error.message}`, 'REQUEST_ERROR');
+    return jsonOutput(respuestaError(`Error procesando request: ${error.message}`, 'REQUEST_ERROR'));
   }
 }
 
 /**
  * Maneja requests GET para datos y dashboard
  * @param {Object} e - Event object con parameters
- * @returns {Object} Respuesta JSON
+ * @returns {GoogleAppsScript.Content.TextOutput} Respuesta JSON
  */
 function doGet(e) {
   const action = e.parameter.action || 'dashboard';
-  
+
   try {
     switch(action) {
       case 'dashboard':
-        return obtenerDashboard();
+        return jsonOutput(obtenerDashboard());
       case 'data':
-        return obtenerDatos(e.parameter);
+        return jsonOutput(obtenerDatos(e.parameter));
       case 'health':
-        return respuestaExitosa({ status: 'OK', timestamp: new Date() });
+        return jsonOutput(respuestaExitosa({ status: 'OK', timestamp: new Date() }));
       default:
-        return respuestaError('Endpoint no encontrado', 'ENDPOINT_NOT_FOUND');
+        return jsonOutput(respuestaError('Endpoint no encontrado', 'ENDPOINT_NOT_FOUND'));
     }
   } catch (error) {
-    return respuestaError(`Error en GET: ${error.message}`, 'GET_ERROR');
+    return jsonOutput(respuestaError(`Error en GET: ${error.message}`, 'GET_ERROR'));
   }
+}
+
+/**
+ * Envuelve un payload como TextOutput JSON para web apps de Apps Script.
+ * @param {Object} payload - Objeto a serializar
+ * @returns {GoogleAppsScript.Content.TextOutput} Respuesta TextOutput
+ */
+function jsonOutput(payload) {
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
