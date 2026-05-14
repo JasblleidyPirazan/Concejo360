@@ -399,3 +399,13 @@ function verificarAccesoDrive() {
     return false;
   }
 }
+
+// === Wrappers para ejecutar desde el editor (Run menu) ===
+
+function testSesiones()      { return ejecutarScraping('sesiones'); }
+function testProyectos()     { return ejecutarScraping('proyectos'); }
+function testAcuerdos()      { return ejecutarScraping('acuerdos'); }
+function testComisiones()    { return ejecutarScraping('comisiones'); }
+function testInvitaciones()  { return ejecutarScraping('invitaciones'); }
+function testCitaciones()    { return ejecutarScraping('citaciones'); }
+function testScrapingCompleto() { return ejecutarScrapingCompleto(); }
