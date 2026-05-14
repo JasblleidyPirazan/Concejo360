@@ -15,36 +15,100 @@ const ScraperSesiones = {
     pageSize: 50,
     datatableId: 'proposiciondt-id',
     maxPaginas: 1000,
-    maxElapsedMs: 4.5 * 60 * 1000 // 4.5 min, deja 1.5 min para procesar + guardar batch
+    maxElapsedMs: 4.5 * 60 * 1000, // 4.5 min, deja 1.5 min para procesar + guardar batch
+    chunkPages: 50 // flushear al sheet cada N paginas (visibilidad + tolerancia a cancel)
   },
 
   /**
-   * Función principal - Ejecuta todo el proceso
+   * Función principal - Orquesta extracción incremental:
+   *  - Carga estados previos para detección de cambios
+   *  - Llama a extraer(), que flushea chunks al sheet via guardarChunk()
+   *  - Hace flush final del remanente, persiste cambios y devuelve stats
+   *
+   * El guardado incremental hace visible el progreso en el sheet durante
+   * la corrida y protege contra cancelaciones (manual o por quota): si la
+   * ejecución muere en medio, lo guardado hasta el último flush persiste.
    * @returns {Object} Resultado del scraping
    */
   ejecutar() {
     try {
-      console.log(`🚀 Iniciando scraper de sesiones`);
-      
-      const datos = this.extraer();
-      const procesados = this.procesar(datos);
-      const guardados = this.guardar(procesados);
-      
-      return this.resultado(guardados);
+      console.log(`🚀 Iniciando scraper de sesiones (con guardado incremental)`);
+
+      const ctx = {
+        estadosPrevios: this.cargarEstadosPrevios(),
+        cambios: [],
+        stats: { nuevos: 0, actualizados: 0, errores: 0, total: 0 }
+      };
+      this._ctx = ctx;
+
+      try {
+        const sobrante = this.extraer();
+        if (sobrante && sobrante.length > 0) this.guardarChunk(sobrante);
+      } finally {
+        delete this._ctx;
+      }
+
+      if (ctx.cambios.length > 0) {
+        console.log(`📝 ${ctx.cambios.length} cambio(s) de estado totales`);
+        this.logCambios(ctx.cambios);
+      }
+
+      return this.resultado({
+        nuevos: ctx.stats.nuevos,
+        actualizados: ctx.stats.actualizados,
+        errores: ctx.stats.errores
+      });
     } catch (error) {
       return this.error(error);
     }
   },
 
   /**
+   * Procesa, detecta cambios de estado y guarda un chunk de sesiones raw.
+   * Refresca el snapshot de estados para evitar contar dos veces el mismo
+   * cambio entre chunks de la misma corrida.
+   * @param {Array} rawRows - Sesiones raw recién extraídas
+   */
+  guardarChunk(rawRows) {
+    if (!rawRows || rawRows.length === 0) return;
+    const ctx = this._ctx;
+    if (!ctx) {
+      // Fallback: si alguien llama fuera de ejecutar(), comportarse como save batch simple
+      const procesados = this.procesar(rawRows);
+      SheetsUtils.guardar(this.config.sheetName, procesados);
+      return;
+    }
+
+    const procesados = this.procesar(rawRows);
+    const cambios = this.detectarCambiosEstado(ctx.estadosPrevios, procesados);
+    if (cambios.length > 0) ctx.cambios.push(...cambios);
+
+    const stats = SheetsUtils.guardar(this.config.sheetName, procesados);
+    ctx.stats.nuevos += stats.nuevos || 0;
+    ctx.stats.actualizados += stats.actualizados || 0;
+    ctx.stats.errores += stats.errores || 0;
+    ctx.stats.total += procesados.length;
+
+    // Refrescar snapshot con los estados recién escritos
+    for (const p of procesados) {
+      const num = String(p.numero == null ? '' : p.numero).trim();
+      if (num) ctx.estadosPrevios.set(num, String(p.estado == null ? '' : p.estado).trim());
+    }
+
+    console.log(`💾 Chunk save: +${procesados.length} filas (nuevos=${stats.nuevos}, actualizados=${stats.actualizados}, total=${ctx.stats.total})`);
+  },
+
+  /**
    * Extrae datos del sitio web SIMI con paginación AJAX de PrimeFaces.
-   * 1) GET inicial para obtener primera página + ViewState + cookies + form name
-   * 2) Loop POSTs partial-ajax cambiando _first hasta agotar filas
-   * @returns {Array} Array de objetos raw extraídos
+   * Si this._ctx está seteado (caso normal vía ejecutar), flushea al sheet
+   * cada chunkPages para mostrar progreso y proteger contra cancelaciones.
+   * Si no, acumula todo y devuelve al final (modo "puro").
+   * @returns {Array} Sesiones raw NO flusheadas todavía (remanente)
    */
   extraer() {
     const sesionesRaw = [];
     const tStart = Date.now();
+    const chunkPages = this.config.chunkPages || 50;
 
     let inicial = this.fetchInicial();
     if (!inicial) return sesionesRaw;
@@ -79,13 +143,14 @@ const ScraperSesiones = {
       const resp = this.fetchPaginaAjax({ first, cookies, viewState: viewStateActual, viewStateName, formName, datatableId, prependId, pageSize });
       if (!resp) { razonSalida = `null response en first=${first}`; break; }
 
-      // ViewExpired / redirect → re-bootstrap una sola vez para refrescar cookie + ViewState
+      // ViewExpired / redirect → flush + re-bootstrap una sola vez
       if (resp.error || resp.redirect) {
         if (reintentosBootstrap >= 1) {
           razonSalida = `${resp.error ? 'error' : 'redirect'} persistente en first=${first}`;
           break;
         }
-        console.log(`♻️ Detectado ${resp.error ? '<error>' : '<redirect>'} en partial response → re-bootstrap (first=${first})`);
+        console.log(`♻️ Detectado ${resp.error ? '<error>' : '<redirect>'} en partial response → flush + re-bootstrap (first=${first})`);
+        if (this._ctx && sesionesRaw.length > 0) this.guardarChunk(sesionesRaw.splice(0));
         const nuevo = this.fetchInicial();
         if (!nuevo) { razonSalida = 're-bootstrap fallido'; break; }
         cookies = nuevo.cookies;
@@ -107,11 +172,16 @@ const ScraperSesiones = {
       pagina++;
 
       if (filas.length < pageSize) { razonSalida = `página corta (${filas.length}<${pageSize}) → última`; break; }
+
+      // Flush periódico para visibilidad y resilience
+      if (this._ctx && (pagina - 1) % chunkPages === 0 && sesionesRaw.length > 0) {
+        this.guardarChunk(sesionesRaw.splice(0));
+      }
     }
 
     if (pagina > this.config.maxPaginas) razonSalida = `maxPaginas ${this.config.maxPaginas} alcanzado`;
     const elapsed = Math.round((Date.now() - tStart) / 1000);
-    console.log(`🏁 Extracción: ${sesionesRaw.length} sesiones en ${pagina - 1} página(s), ${elapsed}s — salida: ${razonSalida}`);
+    console.log(`🏁 Extracción: ${pagina - 1} página(s), ${elapsed}s — salida: ${razonSalida}`);
     return sesionesRaw;
   },
 
@@ -420,30 +490,6 @@ const ScraperSesiones = {
     }
     
     return procesados;
-  },
-
-  /**
-   * Guarda sesiones en Google Sheets
-   * @param {Array} sesiones - Sesiones procesadas
-   * @returns {Object} Estadísticas de guardado
-   */
-  guardar(sesiones) {
-    try {
-      // 1) Cargar snapshot previo para detectar transiciones de estado.
-      const previo = this.cargarEstadosPrevios();
-      // 2) Computar cambios antes de pisar el maestro.
-      const cambios = this.detectarCambiosEstado(previo, sesiones);
-      // 3) Persistir cambios en hoja de auditoria (best-effort).
-      if (cambios.length > 0) {
-        console.log(`📝 ${cambios.length} cambio(s) de estado detectado(s)`);
-        this.logCambios(cambios);
-      }
-      // 4) Guardar el maestro.
-      return SheetsUtils.guardar(this.config.sheetName, sesiones);
-    } catch (error) {
-      console.log(`❌ Error guardando sesiones: ${error.message}`);
-      return { nuevos: 0, actualizados: 0, errores: 1 };
-    }
   },
 
   /**
