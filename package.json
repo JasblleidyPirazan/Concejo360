@@ -7,6 +7,7 @@
     "setup:backend": "cd backend/apps-script && npm install",
     "setup:frontend": "cd frontend && npm install",
     "dev:frontend": "cd frontend && npm run dev",
+    "preview:frontend": "cd frontend && npm run netlify",
     "build:frontend": "cd frontend && npm run build",
     "deploy:gas": "cd backend/apps-script && clasp push",
     "deploy:frontend": "cd frontend && npm run build",

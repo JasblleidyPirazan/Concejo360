@@ -1,0 +1,25 @@
+---
+interface Props {
+  nombre: string;
+  descripcion: string;
+  icono?: string;
+}
+
+const { nombre, descripcion, icono = '📄' } = Astro.props;
+---
+
+<div class="rounded-lg border border-dashed border-slate-300 bg-white/60 p-5 opacity-70">
+  <div class="flex items-start gap-3">
+    <span class="text-2xl" aria-hidden="true">{icono}</span>
+    <div class="flex-1">
+      <div class="flex items-center gap-2">
+        <h3 class="font-semibold text-slate-900">{nombre}</h3>
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+          Próximamente
+        </span>
+      </div>
+      <p class="mt-1 text-sm text-slate-600">{descripcion}</p>
+      <p class="mt-3 text-xs text-slate-500">Scraper en desarrollo</p>
+    </div>
+  </div>
+</div>

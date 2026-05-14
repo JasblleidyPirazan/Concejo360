@@ -1,0 +1,57 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'Concejo 360 — Transparencia del Concejo de Medellín',
+  description = 'Dashboard ciudadano de estadísticas del Concejo de Medellín: sesiones, proyectos, acuerdos y más.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+  </head>
+  <body class="bg-slate-50 text-slate-900 antialiased">
+    <header class="bg-white border-b border-slate-200">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-2 font-semibold text-brand-700">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-brand-600 text-white text-sm">C</span>
+          <span class="text-lg">Concejo 360</span>
+        </a>
+        <nav class="text-sm text-slate-600">
+          <a href="https://www.medellin.gov.co/concejo" target="_blank" rel="noopener" class="hover:text-brand-700">
+            Concejo de Medellín ↗
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8 md:py-12">
+      <slot />
+    </main>
+
+    <footer class="mt-16 border-t border-slate-200 bg-white">
+      <div class="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-600 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <p>
+          Datos obtenidos automáticamente del SIMI. Esta es una iniciativa ciudadana independiente.
+        </p>
+        <p class="text-slate-500">
+          MVP · Concejo 360
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
