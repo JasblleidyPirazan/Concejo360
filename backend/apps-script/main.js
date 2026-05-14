@@ -470,6 +470,24 @@ function resetCitacionesBackfill() {
   return { reset: true };
 }
 
+/**
+ * Muestra el resume offset actual de invitaciones.
+ */
+function verResumeOffsetInvitaciones() {
+  const offset = ScraperInvitaciones.leerResumeOffset();
+  console.log(`Resume offset invitaciones = ${offset}`);
+  return offset;
+}
+
+/**
+ * Borra el resume offset de invitaciones.
+ */
+function resetInvitacionesBackfill() {
+  ScraperInvitaciones.limpiarResumeOffset();
+  console.log('🔄 Resume offset de invitaciones reseteado a 0');
+  return { reset: true };
+}
+
 // === Wrappers de trigger (visibles en el dropdown de main.gs) ===
 // Las funciones reales viven en triggers/scheduled.js pero exponemos
 // alias aquí para que aparezcan siempre en el selector de funciones.

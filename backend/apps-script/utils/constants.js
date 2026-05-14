@@ -67,8 +67,15 @@ const SHEETS_CONFIG = {
   },
   invitaciones: {
     nombre: 'invitaciones_maestro',
-    campos: ['consecutivo', 'titulo', 'estado', 'fecha', 'bancadas'],
-    tipos: ['string', 'string', 'string', 'date', 'array']
+    campos: ['fecha', 'acta_aprobacion', 'consecutivo', 'titulo', 'descripcion', 'estado'],
+    tipos: ['date', 'string', 'string', 'string', 'string', 'string'],
+    claveUnica: ['consecutivo']
+  },
+  invitaciones_detalleBa: {
+    nombre: 'invitaciones_detalleBa',
+    campos: ['consecutivo', 'titulo', 'bancadas'],
+    tipos: ['string', 'string', 'string'],
+    claveUnica: ['consecutivo', 'bancadas']
   },
   citaciones: {
     nombre: 'citaciones_maestro',
