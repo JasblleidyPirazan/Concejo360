@@ -7,7 +7,7 @@
 const ScraperSesiones = {
   // Configuración del scraper
   config: {
-    url: URLS.sesiones,
+    get url() { return URLS.sesiones; },
     sheetName: 'sesiones_maestro',
     campos: ['numero', 'fecha', 'hora', 'temas', 'lugar', 'estado', 'tiene_acta'],
     maxRetries: 3,
