@@ -42,9 +42,23 @@ const SHEETS_CONFIG = {
     claveUnica: ['numero', 'rol', 'concejal']
   },
   acuerdos: {
-    nombre: 'acuerdos_maestro', 
-    campos: ['numero', 'titulo', 'estado', 'fecha_aprobacion', 'proponentes'],
-    tipos: ['string', 'string', 'string', 'date', 'array']
+    nombre: 'acuerdos_maestro',
+    campos: ['no_acuerdo', 'no_proyecto_acuerdo', 'titulo', 'estado'],
+    tipos: ['string', 'string', 'string', 'string'],
+    // no_acuerdo incluye año (ej "58-2026") asi que es unico
+    claveUnica: ['no_acuerdo']
+  },
+  acuerdos_detalle: {
+    nombre: 'acuerdos_detalle',
+    campos: ['no_acuerdo', 'titulo', 'fecha_sancion', 'ano_sancion', 'link_astrea', 'comision'],
+    tipos: ['string', 'string', 'date', 'string', 'string', 'string'],
+    claveUnica: ['no_acuerdo']
+  },
+  acuerdos_concejales: {
+    nombre: 'acuerdos_concejales',
+    campos: ['numero', 'titulo', 'rol', 'concejal'],
+    tipos: ['string', 'string', 'string', 'string'],
+    claveUnica: ['numero', 'rol', 'concejal']
   },
   comisiones: {
     nombre: 'comisiones_maestro',
