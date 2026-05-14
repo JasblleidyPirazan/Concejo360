@@ -46,14 +46,22 @@ const ScraperAcuerdos = {
         bufferMaestro: [],
         bufferDetalle: [],
         bufferConcejales: [],
+        // Cache de acuerdos ya en sheet (no_acuerdo → estado) para saltar
+        // el AJAX de detalle cuando el item ya está extraído y su estado
+        // no cambió.
+        existentes: this.cargarEstadosExistentes(),
         stats: {
           maestro: { nuevos: 0, actualizados: 0, errores: 0 },
           detalle: { nuevos: 0, actualizados: 0, errores: 0 },
           concejales: { nuevos: 0, actualizados: 0, errores: 0 },
           totalAcuerdos: 0,
-          detalleFallido: 0
+          detalleFallido: 0,
+          saltadosSinCambio: 0,
+          cambiosEstado: 0,
+          nuevosExtraidos: 0
         }
       };
+      console.log(`📋 Cache: ${ctx.existentes.size} acuerdos ya en sheet (se saltará detail si no cambió estado)`);
       this._ctx = ctx;
 
       try {
@@ -66,6 +74,7 @@ const ScraperAcuerdos = {
       }
 
       const s = ctx.stats;
+      console.log(`📊 Resumen: ${s.totalAcuerdos} listados | ${s.nuevosExtraidos} con detail fetch | ${s.saltadosSinCambio} saltados | ${s.cambiosEstado} con cambio de estado`);
       return {
         success: true,
         procesados: s.totalAcuerdos,
@@ -77,6 +86,9 @@ const ScraperAcuerdos = {
         concejales_nuevos: s.concejales.nuevos,
         concejales_actualizados: s.concejales.actualizados,
         detalle_fallido: s.detalleFallido,
+        saltados_sin_cambio: s.saltadosSinCambio,
+        cambios_estado: s.cambiosEstado,
+        nuevos_extraidos: s.nuevosExtraidos,
         timestamp: new Date()
       };
     } catch (error) {
@@ -219,6 +231,26 @@ const ScraperAcuerdos = {
     }
   },
 
+  /**
+   * Construye Map<no_acuerdo, estado> leyendo el sheet acuerdos_maestro
+   * UNA sola vez al inicio. Permite saltar el AJAX de detalle si el
+   * acuerdo ya está en el sheet y su estado no cambió.
+   */
+  cargarEstadosExistentes() {
+    const m = new Map();
+    try {
+      const datos = SheetsUtils.obtener(this.config.sheetName);
+      for (const d of datos) {
+        const k = String(d.no_acuerdo == null ? '' : d.no_acuerdo).trim();
+        if (!k) continue;
+        m.set(k, String(d.estado == null ? '' : d.estado).trim());
+      }
+    } catch (e) {
+      console.log(`⚠️ No se pudo cargar estados existentes: ${e.message}`);
+    }
+    return m;
+  },
+
   // === Resume offset (PropertiesService) ===
 
   RESUME_KEY: 'acuerdos_resumeFrom',
@@ -255,6 +287,25 @@ const ScraperAcuerdos = {
   procesarFilasListado(filasListado, ctxAjax) {
     let viewState = ctxAjax.viewState;
     for (const filaList of filasListado) {
+      this._ctx.stats.totalAcuerdos++;
+
+      // Fast path: si ya está en cache con el MISMO estado, skip completo (~0ms).
+      // Las columnas de maestro (no_acuerdo, no_proyecto_acuerdo, titulo,
+      // estado) están todas en el listado actual; si el estado no cambió,
+      // nada que actualizar y los datos de detalle (fecha_sancion, comision,
+      // concejales) ya fueron extraídos en una corrida previa.
+      const estadoGuardado = this._ctx.existentes.get(filaList.no_acuerdo);
+      const estadoActual = String(filaList.estado || '').trim();
+      if (estadoGuardado !== undefined && estadoGuardado === estadoActual) {
+        this._ctx.stats.saltadosSinCambio++;
+        continue;
+      }
+
+      // Cambio de estado o item nuevo: necesitamos detail completo
+      const esCambioEstado = estadoGuardado !== undefined;
+      if (esCambioEstado) this._ctx.stats.cambiosEstado++;
+      else this._ctx.stats.nuevosExtraidos++;
+
       Utilities.sleep(this.config.delayBetweenDetails);
 
       const respDetalle = this.fetchDetalleAjax({
@@ -270,7 +321,6 @@ const ScraperAcuerdos = {
         this._ctx.stats.detalleFallido++;
         // Guardar al menos lo del listado
         this._ctx.bufferMaestro.push(this.armarFilaMaestro(filaList));
-        this._ctx.stats.totalAcuerdos++;
         continue;
       }
       if (respDetalle.viewState) viewState = respDetalle.viewState;
@@ -280,7 +330,9 @@ const ScraperAcuerdos = {
       this._ctx.bufferDetalle.push(this.armarFilaDetalle(filaList, detalle));
       const concejales = this.armarFilasConcejales(filaList, detalle);
       this._ctx.bufferConcejales.push(...concejales);
-      this._ctx.stats.totalAcuerdos++;
+
+      // Refrescar cache para que la misma corrida no re-procese si vuelve a aparecer
+      this._ctx.existentes.set(filaList.no_acuerdo, estadoActual);
     }
     return viewState;
   },
