@@ -126,9 +126,23 @@ const ScraperSesiones = {
     if (primeraPagina.length === 0) return sesionesRaw;
 
     const pageSize = primeraPagina.length;
-    let first = primeraPagina.length;
+
+    // Resume: si hay offset persistido, saltamos directo a esa página vía AJAX.
+    // Siempre extraemos página 1 igual (para refrescar las sesiones más recientes
+    // y detectar cambios de estado), pero el loop arranca desde resumeFrom.
+    const resumeFrom = this.leerResumeOffset();
+    let first;
+    let pagina;
+    if (resumeFrom > pageSize) {
+      first = resumeFrom;
+      pagina = Math.floor(resumeFrom / pageSize) + 1;
+      console.log(`▶️ Reanudando backfill desde first=${resumeFrom} (página ~${pagina}). Saltando ${resumeFrom - pageSize} sesiones ya extraídas en corridas previas.`);
+    } else {
+      first = pageSize;
+      pagina = 2;
+    }
+
     let viewStateActual = viewState;
-    let pagina = 2;
     let reintentosBootstrap = 0;
     let razonSalida = 'fin natural';
 
@@ -182,7 +196,51 @@ const ScraperSesiones = {
     if (pagina > this.config.maxPaginas) razonSalida = `maxPaginas ${this.config.maxPaginas} alcanzado`;
     const elapsed = Math.round((Date.now() - tStart) / 1000);
     console.log(`🏁 Extracción: ${pagina - 1} página(s), ${elapsed}s — salida: ${razonSalida}`);
+
+    // Persistir/limpiar el resume offset para la próxima corrida.
+    const hitBudget = razonSalida.indexOf('time budget') === 0 || razonSalida.indexOf('maxPaginas') === 0;
+    if (hitBudget) {
+      this.guardarResumeOffset(first);
+    } else if (resumeFrom > 0) {
+      console.log(`🎉 Backfill completado — resume offset limpiado`);
+      this.limpiarResumeOffset();
+    } else {
+      // Run normal sin resume previo y terminó natural: nada que limpiar
+      this.limpiarResumeOffset();
+    }
     return sesionesRaw;
+  },
+
+  // === Resume offset (PropertiesService) ===
+
+  RESUME_KEY: 'sesiones_resumeFrom',
+
+  leerResumeOffset() {
+    try {
+      const v = PropertiesService.getScriptProperties().getProperty(this.RESUME_KEY);
+      const n = parseInt(v || '0', 10);
+      return isNaN(n) ? 0 : n;
+    } catch (e) {
+      console.log(`⚠️ leerResumeOffset falló: ${e.message}`);
+      return 0;
+    }
+  },
+
+  guardarResumeOffset(first) {
+    try {
+      PropertiesService.getScriptProperties().setProperty(this.RESUME_KEY, String(first));
+      console.log(`💾 Resume offset = ${first} (próxima corrida continuará desde aquí)`);
+    } catch (e) {
+      console.log(`⚠️ guardarResumeOffset falló: ${e.message}`);
+    }
+  },
+
+  limpiarResumeOffset() {
+    try {
+      PropertiesService.getScriptProperties().deleteProperty(this.RESUME_KEY);
+    } catch (e) {
+      /* noop */
+    }
   },
 
   /**

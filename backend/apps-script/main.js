@@ -410,6 +410,30 @@ function testInvitaciones()  { return ejecutarScraping('invitaciones'); }
 function testCitaciones()    { return ejecutarScraping('citaciones'); }
 function testScrapingCompleto() { return ejecutarScrapingCompleto(); }
 
+// === Control del backfill de sesiones (resume entre corridas) ===
+
+/**
+ * Lee el resume offset actual de sesiones desde ScriptProperties.
+ * Si > 0, la próxima corrida de testSesiones reanudará desde ahí.
+ * Si = 0 (o no existe), la próxima corrida arranca desde la página 1.
+ */
+function verResumeOffsetSesiones() {
+  const offset = ScraperSesiones.leerResumeOffset();
+  console.log(`Resume offset sesiones = ${offset}`);
+  return offset;
+}
+
+/**
+ * Borra el resume offset. Usar cuando se quiere forzar a la próxima
+ * corrida a empezar desde el principio (por ejemplo, tras vaciar el
+ * sheet, o si se detecto que el offset quedo desactualizado).
+ */
+function resetSesionesBackfill() {
+  ScraperSesiones.limpiarResumeOffset();
+  console.log('🔄 Resume offset de sesiones reseteado a 0');
+  return { reset: true };
+}
+
 /**
  * Diagnostico: fetches la URL del scraper de sesiones y reporta
  * que HTML llega, IDs presentes, tablas, y si aparece la data esperada.
