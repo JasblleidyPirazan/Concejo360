@@ -160,6 +160,17 @@ const ScraperSesiones = {
       }
 
       const xml = response.getContentText();
+
+      // 🔬 Debug temporal: solo en la primera pagina AJAX (first=pageSize) volcamos
+      // el payload completo y un excerpt de la respuesta para diagnosticar por que
+      // PrimeFaces parece devolver siempre la pagina 1.
+      if (first === pageSize) {
+        console.log('🔬 Payload AJAX página 2:');
+        Object.keys(payload).forEach(k => console.log(`  ${k}=${payload[k]}`));
+        console.log(`🔬 Cookie enviada: ${cookies || '(vacía)'}`);
+        console.log(`🔬 Respuesta AJAX (${xml.length} bytes) excerpt:`);
+        console.log(xml.substring(0, 1800));
+      }
       const html = this.extraerUpdate(xml, datatableId);
       const viewStateNuevo = this.extraerUpdateViewState(xml);
       return { html, viewState: viewStateNuevo };
