@@ -35,10 +35,20 @@ const SheetsUtils = {
   },
 
   /**
-   * Guardar datos en Google Sheets
-   * @param {string} sheetName - Nombre de la hoja
-   * @param {Array} datos - Array de objetos a guardar
-   * @returns {Object} Estadísticas de guardado
+   * Guardar datos en Google Sheets con upsert masivo (batch).
+   *
+   * Estrategia: leer toda la hoja una sola vez, hacer merge en memoria
+   * indexado por la columna clave (numero o consecutivo), y reescribir
+   * el body en una sola llamada setValues. Esto evita el O(N²) del
+   * read-per-row anterior y permite manejar miles de filas en segundos.
+   *
+   * Merge-friendly: al actualizar, las columnas presentes en `dato`
+   * pisan al existente; las que no estén en `dato` conservan el valor
+   * actual del sheet (no se borran).
+   *
+   * @param {string} sheetName - Nombre de la hoja destino
+   * @param {Array} datos - Objetos a insertar/actualizar
+   * @returns {Object} { nuevos, actualizados, errores }
    */
   guardar(sheetName, datos) {
     try {
@@ -48,27 +58,71 @@ const SheetsUtils = {
 
       const sheet = this.obtenerOCrearHoja(sheetName);
       const config = SHEETS_CONFIG[sheetName.replace('_maestro', '')];
-      const stats = { nuevos: 0, actualizados: 0, errores: 0 };
 
-      datos.forEach(dato => {
-        try {
-          const existente = this.buscarPorClave(sheet, dato);
-          if (existente) {
-            this.actualizar(sheet, existente.row, dato);
-            stats.actualizados++;
-          } else {
-            this.insertar(sheet, dato, config);
-            stats.nuevos++;
+      // 1) Lectura única de toda la hoja
+      const lastRow = sheet.getLastRow();
+      const lastCol = sheet.getLastColumn();
+      let headers;
+      let filas;
+
+      if (lastRow >= 1 && lastCol >= 1) {
+        const valores = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+        headers = valores[0];
+        filas = valores.slice(1);
+      } else if (config) {
+        headers = config.campos.slice();
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        filas = [];
+      } else {
+        headers = Object.keys(datos[0]);
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        filas = [];
+      }
+
+      // 2) Determinar columna clave (numero o consecutivo)
+      const claveCol = headers.indexOf('numero') !== -1 ? 'numero'
+                       : headers.indexOf('consecutivo') !== -1 ? 'consecutivo'
+                       : null;
+      if (!claveCol) throw new Error(`No se encontro columna clave (numero/consecutivo) en ${sheetName}`);
+      const claveIdx = headers.indexOf(claveCol);
+
+      // 3) Indice clave -> rowIndex (en filas[])
+      const indice = new Map();
+      for (let i = 0; i < filas.length; i++) {
+        const k = String(filas[i][claveIdx] == null ? '' : filas[i][claveIdx]).trim();
+        if (k) indice.set(k, i);
+      }
+
+      // 4) Aplicar upsert en memoria
+      const stats = { nuevos: 0, actualizados: 0, errores: 0 };
+      for (const dato of datos) {
+        const k = String(dato[claveCol] == null ? '' : dato[claveCol]).trim();
+        if (!k) { stats.errores++; continue; }
+
+        if (indice.has(k)) {
+          // Update merge-friendly: solo pisar columnas presentes en dato
+          const row = filas[indice.get(k)];
+          for (let c = 0; c < headers.length; c++) {
+            const h = headers[c];
+            if (dato[h] !== undefined && dato[h] !== null) row[c] = dato[h];
           }
-        } catch (error) {
-          console.log(`❌ Error guardando registro: ${error.message}`);
-          stats.errores++;
+          stats.actualizados++;
+        } else {
+          const nuevaFila = headers.map(h => (dato[h] === undefined || dato[h] === null) ? '' : dato[h]);
+          indice.set(k, filas.length);
+          filas.push(nuevaFila);
+          stats.nuevos++;
         }
-      });
+      }
+
+      // 5) Reescribir el body en una sola operación
+      if (filas.length > 0) {
+        sheet.getRange(2, 1, filas.length, headers.length).setValues(filas);
+      }
 
       return stats;
     } catch (error) {
-      console.log(`❌ Error en guardar: ${error.message}`);
+      console.log(`❌ Error en guardar batch ${sheetName}: ${error.message}`);
       return { nuevos: 0, actualizados: 0, errores: 1 };
     }
   },

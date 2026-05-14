@@ -11,11 +11,11 @@ const ScraperSesiones = {
     sheetName: 'sesiones_maestro',
     campos: ['numero', 'fecha', 'hora', 'temas', 'detalle', 'lugar', 'estado', 'fecha_extraccion'],
     maxRetries: 3,
-    delayBetweenPages: 1500,
+    delayBetweenPages: 600,
     pageSize: 50,
     datatableId: 'proposiciondt-id',
     maxPaginas: 1000,
-    maxElapsedMs: 5 * 60 * 1000 // 5 min, deja 1 min de margen sobre el limite duro de Apps Script
+    maxElapsedMs: 4.5 * 60 * 1000 // 4.5 min, deja 1.5 min para procesar + guardar batch
   },
 
   /**
