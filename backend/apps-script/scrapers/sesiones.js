@@ -92,28 +92,28 @@ const ScraperSesiones = {
    */
   parsearHtmlSesiones(html) {
     const sesiones = [];
-    
+
     try {
-      // Buscar tabla de sesiones usando regex (más simple que DOM parsing)
-      const tablaMatch = html.match(/<table[^>]*id="proposiciondt-id"[^>]*>(.*?)<\/table>/s);
-      if (!tablaMatch) return [];
-      
-      const tablaHtml = tablaMatch[1];
-      const filasMatch = tablaHtml.match(/<tr[^>]*>(.*?)<\/tr>/gs);
-      
+      // PrimeFaces datatable: el id "proposiciondt-id" vive en el tbody, no en <table>
+      const tbodyMatch = html.match(/<tbody[^>]*id="proposiciondt-id_data"[^>]*>([\s\S]*?)<\/tbody>/);
+      if (!tbodyMatch) {
+        console.log('❌ tbody proposiciondt-id_data no encontrado en HTML');
+        return [];
+      }
+
+      // Cada fila de datos lleva data-ri="N" (row index de PrimeFaces)
+      const filasMatch = tbodyMatch[1].match(/<tr[^>]*data-ri="\d+"[^>]*>[\s\S]*?<\/tr>/g);
       if (!filasMatch) return [];
-      
-      // Procesar cada fila (saltear encabezado)
-      for (let i = 1; i < filasMatch.length; i++) {
-        const fila = filasMatch[i];
+
+      for (const fila of filasMatch) {
         const sesion = this.parsearFilaSesion(fila);
         if (sesion) sesiones.push(sesion);
       }
-      
+
     } catch (error) {
       console.log(`❌ Error parseando HTML: ${error.message}`);
     }
-    
+
     return sesiones;
   },
 
@@ -124,23 +124,34 @@ const ScraperSesiones = {
    */
   parsearFilaSesion(filaHtml) {
     try {
-      const celdas = filaHtml.match(/<td[^>]*>(.*?)<\/td>/gs);
+      // Las celdas reales son <td role="gridcell">. Otros <td> internos no aplican.
+      const celdas = filaHtml.match(/<td[^>]*role="gridcell"[^>]*>[\s\S]*?<\/td>/g);
       if (!celdas || celdas.length < 6) return null;
-      
+
       return {
-        numero: this.extraerTexto(celdas[0]),
-        fecha: this.extraerTexto(celdas[1]),
-        hora: this.extraerTexto(celdas[2]),
+        numero: this.valorCelda(celdas[0]),
+        fecha: this.valorCelda(celdas[1]),
+        hora: this.valorCelda(celdas[2]),
         temas: this.extraerTemas(celdas[3]),
         detalles: this.extraerDetalles(celdas[4]),
-        lugar: this.extraerTexto(celdas[5]),
-        estado: 'Pendiente', // Estado por defecto
+        lugar: this.valorCelda(celdas[5]),
+        estado: 'Pendiente', // determinarEstado() lo refina segun fecha
         tiene_acta: false
       };
     } catch (error) {
       console.log(`❌ Error parseando fila: ${error.message}`);
       return null;
     }
+  },
+
+  /**
+   * Extrae texto de una celda <td>, descartando el prefijo
+   * <span class="ui-column-title">Etiqueta</span> de PrimeFaces responsive.
+   */
+  valorCelda(celdaHtml) {
+    if (!celdaHtml) return '';
+    const sinTitle = celdaHtml.replace(/<span[^>]*class="ui-column-title"[^>]*>[\s\S]*?<\/span>/g, '');
+    return sinTitle.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
   },
 
   /**
@@ -290,11 +301,27 @@ const ScraperSesiones = {
   procesarFecha(fechaStr) {
     try {
       if (!fechaStr) return null;
-      const fecha = new Date(fechaStr);
+      const fecha = this.parseFechaEspanol(fechaStr) || new Date(fechaStr);
       return ValidationUtils.esFechaValida(fecha) ? fecha : null;
     } catch (error) {
       return null;
     }
+  },
+
+  /**
+   * Parsea fechas en formato "domingo, 24 de mayo de 2026" -> Date.
+   * Devuelve null si no matchea.
+   */
+  parseFechaEspanol(str) {
+    const meses = {
+      enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+      julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+    };
+    const m = String(str).toLowerCase().match(/(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})/);
+    if (!m) return null;
+    const mes = meses[m[2]];
+    if (mes === undefined) return null;
+    return new Date(parseInt(m[3], 10), mes, parseInt(m[1], 10));
   },
 
   /**
