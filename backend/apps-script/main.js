@@ -452,6 +452,24 @@ function resetAcuerdosBackfill() {
   return { reset: true };
 }
 
+/**
+ * Muestra el resume offset actual de citaciones.
+ */
+function verResumeOffsetCitaciones() {
+  const offset = ScraperCitaciones.leerResumeOffset();
+  console.log(`Resume offset citaciones = ${offset}`);
+  return offset;
+}
+
+/**
+ * Borra el resume offset de citaciones.
+ */
+function resetCitacionesBackfill() {
+  ScraperCitaciones.limpiarResumeOffset();
+  console.log('🔄 Resume offset de citaciones reseteado a 0');
+  return { reset: true };
+}
+
 // === Wrappers de trigger (visibles en el dropdown de main.gs) ===
 // Las funciones reales viven en triggers/scheduled.js pero exponemos
 // alias aquí para que aparezcan siempre en el selector de funciones.

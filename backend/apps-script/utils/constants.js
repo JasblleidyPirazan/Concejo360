@@ -72,8 +72,15 @@ const SHEETS_CONFIG = {
   },
   citaciones: {
     nombre: 'citaciones_maestro',
-    campos: ['consecutivo', 'titulo', 'estado', 'fecha', 'descripcion'],
-    tipos: ['string', 'string', 'string', 'date', 'string']
+    campos: ['fecha', 'acta_aprobacion', 'consecutivo', 'titulo', 'descripcion', 'integrantes', 'estado'],
+    tipos: ['date', 'string', 'string', 'string', 'string', 'string', 'string'],
+    claveUnica: ['consecutivo']
+  },
+  citaciones_detalleBa: {
+    nombre: 'citaciones_detalleBa',
+    campos: ['consecutivo', 'titulo', 'bancadas'],
+    tipos: ['string', 'string', 'string'],
+    claveUnica: ['consecutivo', 'bancadas']
   }
 };
 
