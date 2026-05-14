@@ -14,7 +14,8 @@ const ScraperSesiones = {
     delayBetweenPages: 1500,
     pageSize: 50,
     datatableId: 'proposiciondt-id',
-    maxPaginas: 100
+    maxPaginas: 1000,
+    maxElapsedMs: 5 * 60 * 1000 // 5 min, deja 1 min de margen sobre el limite duro de Apps Script
   },
 
   /**
@@ -43,10 +44,12 @@ const ScraperSesiones = {
    */
   extraer() {
     const sesionesRaw = [];
-    const inicial = this.fetchInicial();
+    const tStart = Date.now();
+
+    let inicial = this.fetchInicial();
     if (!inicial) return sesionesRaw;
 
-    const { html, cookies, viewState, viewStateName, formName, datatableId, prependId } = inicial;
+    let { html, cookies, viewState, viewStateName, formName, datatableId, prependId } = inicial;
     const primeraPagina = this.parsearHtmlSesiones(html);
     sesionesRaw.push(...primeraPagina);
     console.log(`📄 Página 1: ${primeraPagina.length} sesiones (formName=${formName}, prependId=${prependId}, ViewState=${viewState ? 'ok' : 'missing'}, vsName=${viewStateName})`);
@@ -58,34 +61,57 @@ const ScraperSesiones = {
     }
     if (primeraPagina.length === 0) return sesionesRaw;
 
-    // pageSize dinámico: si la pagina inicial trajo N filas, mantengo ese tamaño para
-    // que PrimeFaces no devuelva una página corta intermedia que rompa el loop.
     const pageSize = primeraPagina.length;
     let first = primeraPagina.length;
     let viewStateActual = viewState;
     let pagina = 2;
+    let reintentosBootstrap = 0;
+    let razonSalida = 'fin natural';
 
     while (pagina <= this.config.maxPaginas) {
+      if (Date.now() - tStart > this.config.maxElapsedMs) {
+        razonSalida = `time budget (${Math.round(this.config.maxElapsedMs / 1000)}s)`;
+        break;
+      }
+
       Utilities.sleep(this.config.delayBetweenPages);
 
       const resp = this.fetchPaginaAjax({ first, cookies, viewState: viewStateActual, viewStateName, formName, datatableId, prependId, pageSize });
-      if (!resp) break;
+      if (!resp) { razonSalida = `null response en first=${first}`; break; }
+
+      // ViewExpired / redirect → re-bootstrap una sola vez para refrescar cookie + ViewState
+      if (resp.error || resp.redirect) {
+        if (reintentosBootstrap >= 1) {
+          razonSalida = `${resp.error ? 'error' : 'redirect'} persistente en first=${first}`;
+          break;
+        }
+        console.log(`♻️ Detectado ${resp.error ? '<error>' : '<redirect>'} en partial response → re-bootstrap (first=${first})`);
+        const nuevo = this.fetchInicial();
+        if (!nuevo) { razonSalida = 're-bootstrap fallido'; break; }
+        cookies = nuevo.cookies;
+        viewStateActual = nuevo.viewState;
+        viewStateName = nuevo.viewStateName;
+        formName = nuevo.formName;
+        prependId = nuevo.prependId;
+        reintentosBootstrap++;
+        continue;
+      }
 
       const filas = this.parsearHtmlSesiones(resp.html);
       console.log(`📄 Página ${pagina} (first=${first}): ${filas.length} sesiones`);
-      if (filas.length === 0) break;
+      if (filas.length === 0) { razonSalida = `página vacía en first=${first}`; break; }
 
       sesionesRaw.push(...filas);
       if (resp.viewState) viewStateActual = resp.viewState;
       first += filas.length;
       pagina++;
 
-      if (filas.length < pageSize) break;
+      if (filas.length < pageSize) { razonSalida = `página corta (${filas.length}<${pageSize}) → última`; break; }
     }
 
-    if (pagina > this.config.maxPaginas) {
-      console.log(`⚠️ Límite de páginas alcanzado: ${this.config.maxPaginas}`);
-    }
+    if (pagina > this.config.maxPaginas) razonSalida = `maxPaginas ${this.config.maxPaginas} alcanzado`;
+    const elapsed = Math.round((Date.now() - tStart) / 1000);
+    console.log(`🏁 Extracción: ${sesionesRaw.length} sesiones en ${pagina - 1} página(s), ${elapsed}s — salida: ${razonSalida}`);
     return sesionesRaw;
   },
 
@@ -161,16 +187,11 @@ const ScraperSesiones = {
 
       const xml = response.getContentText();
 
-      // 🔬 Debug temporal: solo en la primera pagina AJAX (first=pageSize) volcamos
-      // el payload completo y un excerpt de la respuesta para diagnosticar por que
-      // PrimeFaces parece devolver siempre la pagina 1.
-      if (first === pageSize) {
-        console.log('🔬 Payload AJAX página 2:');
-        Object.keys(payload).forEach(k => console.log(`  ${k}=${payload[k]}`));
-        console.log(`🔬 Cookie enviada: ${cookies || '(vacía)'}`);
-        console.log(`🔬 Respuesta AJAX (${xml.length} bytes) excerpt:`);
-        console.log(xml.substring(0, 1800));
-      }
+      // JSF/PrimeFaces señala expiración o navegación con <error> o <redirect>.
+      // En esos casos el caller debe re-bootstrapear ViewState + cookies.
+      if (/<error\b/i.test(xml)) return { html: '', viewState: null, error: true };
+      if (/<redirect\b/i.test(xml)) return { html: '', viewState: null, redirect: true };
+
       const html = this.extraerUpdate(xml, datatableId);
       const viewStateNuevo = this.extraerUpdateViewState(xml);
       return { html, viewState: viewStateNuevo };
@@ -408,10 +429,91 @@ const ScraperSesiones = {
    */
   guardar(sesiones) {
     try {
+      // 1) Cargar snapshot previo para detectar transiciones de estado.
+      const previo = this.cargarEstadosPrevios();
+      // 2) Computar cambios antes de pisar el maestro.
+      const cambios = this.detectarCambiosEstado(previo, sesiones);
+      // 3) Persistir cambios en hoja de auditoria (best-effort).
+      if (cambios.length > 0) {
+        console.log(`📝 ${cambios.length} cambio(s) de estado detectado(s)`);
+        this.logCambios(cambios);
+      }
+      // 4) Guardar el maestro.
       return SheetsUtils.guardar(this.config.sheetName, sesiones);
     } catch (error) {
       console.log(`❌ Error guardando sesiones: ${error.message}`);
       return { nuevos: 0, actualizados: 0, errores: 1 };
+    }
+  },
+
+  /**
+   * Construye Map<numero, estado> desde el sheet maestro actual.
+   * Si la hoja no existe (primera corrida), devuelve un Map vacío.
+   */
+  cargarEstadosPrevios() {
+    const estados = new Map();
+    try {
+      const datos = SheetsUtils.obtener(this.config.sheetName);
+      for (const d of datos) {
+        const num = String(d.numero == null ? '' : d.numero).trim();
+        if (!num) continue;
+        estados.set(num, String(d.estado == null ? '' : d.estado).trim());
+      }
+    } catch (e) {
+      console.log(`⚠️ No se pudo cargar estados previos: ${e.message}`);
+    }
+    return estados;
+  },
+
+  /**
+   * Compara estado previo vs nuevo y arma filas para sesiones_cambios.
+   * Solo emite cambios de sesiones que YA existian (las nuevas no son "cambio").
+   */
+  detectarCambiosEstado(estadosPrevios, sesionesNuevas) {
+    const cambios = [];
+    const fechaCambio = new Date();
+    for (const s of sesionesNuevas) {
+      const num = String(s.numero || '').trim();
+      if (!num || !estadosPrevios.has(num)) continue;
+      const anterior = estadosPrevios.get(num);
+      const nuevo = String(s.estado || '').trim();
+      if (anterior === nuevo) continue;
+      cambios.push({
+        numero: num,
+        estado_anterior: anterior,
+        estado_nuevo: nuevo,
+        fecha_cambio: fechaCambio,
+        tipo_cambio: this.clasificarCambio(anterior, nuevo)
+      });
+    }
+    return cambios;
+  },
+
+  /**
+   * Mapea una transición a un tipo de cambio legible.
+   */
+  clasificarCambio(anterior, nuevo) {
+    const a = String(anterior || '').toLowerCase();
+    const n = String(nuevo || '').toLowerCase();
+    if (a === 'programada' && n === 'realizada') return 'sesion_realizada';
+    if (a === 'pendiente' && n === 'programada') return 'sesion_programada';
+    if (n === 'cancelada') return 'sesion_cancelada';
+    if (n === 'aplazada') return 'sesion_aplazada';
+    return 'cambio_estado';
+  },
+
+  /**
+   * Appende filas en la hoja sesiones_cambios. Si no existe, la crea con
+   * headers via SheetsUtils.obtenerOCrearHoja (lee SHEETS_CONFIG.sesiones_cambios).
+   */
+  logCambios(cambios) {
+    try {
+      const sheet = SheetsUtils.obtenerOCrearHoja('sesiones_cambios');
+      for (const c of cambios) {
+        sheet.appendRow([c.numero, c.estado_anterior, c.estado_nuevo, c.fecha_cambio, c.tipo_cambio]);
+      }
+    } catch (e) {
+      console.log(`⚠️ No se pudo escribir sesiones_cambios: ${e.message}`);
     }
   },
 

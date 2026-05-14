@@ -20,6 +20,11 @@ const SHEETS_CONFIG = {
     campos: ['numero', 'fecha', 'hora', 'temas', 'detalle', 'lugar', 'estado', 'fecha_extraccion'],
     tipos: ['string', 'date', 'string', 'string', 'string', 'string', 'string', 'date']
   },
+  sesiones_cambios: {
+    nombre: 'sesiones_cambios',
+    campos: ['numero', 'estado_anterior', 'estado_nuevo', 'fecha_cambio', 'tipo_cambio'],
+    tipos: ['string', 'string', 'string', 'date', 'string']
+  },
   proyectos: {
     nombre: 'proyectos_maestro',
     campos: ['numero', 'titulo', 'proponentes', 'estado', 'fecha', 'comision'],
