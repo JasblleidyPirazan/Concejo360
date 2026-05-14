@@ -17,8 +17,8 @@ const URLS = {
 const SHEETS_CONFIG = {
   sesiones: {
     nombre: 'sesiones_maestro',
-    campos: ['numero', 'fecha', 'hora', 'temas', 'lugar', 'estado', 'tiene_acta'],
-    tipos: ['string', 'date', 'string', 'array', 'string', 'string', 'boolean']
+    campos: ['numero', 'fecha', 'hora', 'temas', 'detalle', 'lugar', 'estado', 'fecha_extraccion'],
+    tipos: ['string', 'date', 'string', 'string', 'string', 'string', 'string', 'date']
   },
   proyectos: {
     nombre: 'proyectos_maestro',

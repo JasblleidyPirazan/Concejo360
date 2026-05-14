@@ -150,7 +150,8 @@ const SheetsUtils = {
   },
 
   actualizar(sheet, row, dato) {
-    const valores = this.objetoAArray(dato);
+    const config = SHEETS_CONFIG[sheet.getName().replace('_maestro', '')];
+    const valores = this.objetoAArray(dato, config);
     sheet.getRange(row, 1, 1, valores.length).setValues([valores]);
   },
 

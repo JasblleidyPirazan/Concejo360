@@ -133,10 +133,9 @@ const ScraperSesiones = {
         fecha: this.valorCelda(celdas[1]),
         hora: this.valorCelda(celdas[2]),
         temas: this.extraerTemas(celdas[3]),
-        detalles: this.extraerDetalles(celdas[4]),
+        detalle: this.valorCelda(celdas[4]),
         lugar: this.valorCelda(celdas[5]),
-        estado: 'Pendiente', // determinarEstado() lo refina segun fecha
-        tiene_acta: false
+        estado: 'Pendiente' // determinarEstado() lo refina segun fecha
       };
     } catch (error) {
       console.log(`❌ Error parseando fila: ${error.message}`);
@@ -168,10 +167,11 @@ const ScraperSesiones = {
           numero: ValidationUtils.limpiarTexto(sesion.numero),
           fecha: this.procesarFecha(sesion.fecha),
           hora: ValidationUtils.limpiarTexto(sesion.hora),
-          temas: this.procesarTemas(sesion.temas),
+          temas: this.procesarTemas(sesion.temas).join(' | '),
+          detalle: ValidationUtils.limpiarTexto(sesion.detalle || ''),
           lugar: ValidationUtils.limpiarTexto(sesion.lugar),
           estado: this.determinarEstado(sesion),
-          tiene_acta: this.verificarActa(sesion.numero)
+          fecha_extraccion: new Date()
         };
         
         // Validar que la sesión sea válida
