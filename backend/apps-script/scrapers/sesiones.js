@@ -9,9 +9,12 @@ const ScraperSesiones = {
   config: {
     get url() { return URLS.sesiones; },
     sheetName: 'sesiones_maestro',
-    campos: ['numero', 'fecha', 'hora', 'temas', 'lugar', 'estado', 'tiene_acta'],
+    campos: ['numero', 'fecha', 'hora', 'temas', 'detalle', 'lugar', 'estado', 'fecha_extraccion'],
     maxRetries: 3,
-    delayBetweenPages: 2000
+    delayBetweenPages: 1500,
+    pageSize: 50,
+    datatableId: 'proposiciondt-id',
+    maxPaginas: 100
   },
 
   /**
@@ -33,56 +36,185 @@ const ScraperSesiones = {
   },
 
   /**
-   * Extrae datos del sitio web SIMI
+   * Extrae datos del sitio web SIMI con paginación AJAX de PrimeFaces.
+   * 1) GET inicial para obtener primera página + ViewState + cookies + form name
+   * 2) Loop POSTs partial-ajax cambiando _first hasta agotar filas
    * @returns {Array} Array de objetos raw extraídos
    */
   extraer() {
     const sesionesRaw = [];
-    let paginaActual = 1;
-    
-    while (true) {
-      const sesiones = this.extraerPagina();
-      if (sesiones.length === 0) break;
-      
-      sesionesRaw.push(...sesiones);
-      console.log(`📄 Página ${paginaActual}: ${sesiones.length} sesiones extraídas`);
-      
-      if (!this.siguientePagina()) break;
-      paginaActual++;
-      
-      // Límite de seguridad
-      if (paginaActual > 50) {
-        console.log(`⚠️ Límite de páginas alcanzado: ${paginaActual}`);
-        break;
-      }
+    const inicial = this.fetchInicial();
+    if (!inicial) return sesionesRaw;
+
+    const { html, cookies, viewState, formName, datatableId } = inicial;
+    const primeraPagina = this.parsearHtmlSesiones(html);
+    sesionesRaw.push(...primeraPagina);
+    console.log(`📄 Página 1: ${primeraPagina.length} sesiones`);
+
+    if (!formName || !viewState) {
+      console.log('⚠️ No se pudo extraer formName/ViewState — devuelvo solo página 1');
+      return sesionesRaw;
     }
-    
+    if (primeraPagina.length < this.config.pageSize) return sesionesRaw;
+
+    let first = primeraPagina.length;
+    let viewStateActual = viewState;
+    let pagina = 2;
+
+    while (pagina <= this.config.maxPaginas) {
+      Utilities.sleep(this.config.delayBetweenPages);
+
+      const resp = this.fetchPaginaAjax({ first, cookies, viewState: viewStateActual, formName, datatableId });
+      if (!resp) break;
+
+      const filas = this.parsearHtmlSesiones(resp.html);
+      console.log(`📄 Página ${pagina} (first=${first}): ${filas.length} sesiones`);
+      if (filas.length === 0) break;
+
+      sesionesRaw.push(...filas);
+      if (resp.viewState) viewStateActual = resp.viewState;
+      first += filas.length;
+      pagina++;
+
+      if (filas.length < this.config.pageSize) break;
+    }
+
+    if (pagina > this.config.maxPaginas) {
+      console.log(`⚠️ Límite de páginas alcanzado: ${this.config.maxPaginas}`);
+    }
     return sesionesRaw;
   },
 
   /**
-   * Extrae sesiones de la página actual
-   * @returns {Array} Sesiones de la página actual
+   * GET inicial: parsea HTML, captura cookies, ViewState y form que envuelve la datatable.
+   * @returns {Object|null} { html, cookies, viewState, formName, datatableId } o null si falla
    */
-  extraerPagina() {
+  fetchInicial() {
     try {
       const response = UrlFetchApp.fetch(this.config.url, {
         method: 'GET',
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Concejal360)' },
-        muteHttpExceptions: true
+        headers: this.headersGet(),
+        muteHttpExceptions: true,
+        followRedirects: true
       });
-      
+
       if (response.getResponseCode() !== 200) {
-        throw new Error(`HTTP ${response.getResponseCode()}`);
+        console.log(`❌ GET inicial HTTP ${response.getResponseCode()}`);
+        return null;
       }
-      
+
       const html = response.getContentText();
-      return this.parsearHtmlSesiones(html);
-      
+      const cookies = this.extraerCookies(response);
+      const viewState = this.extraerViewState(html);
+      const formName = this.extraerFormName(html, this.config.datatableId);
+
+      return { html, cookies, viewState, formName, datatableId: this.config.datatableId };
     } catch (error) {
-      console.log(`❌ Error extrayendo página: ${error.message}`);
-      return [];
+      console.log(`❌ Error en fetchInicial: ${error.message}`);
+      return null;
     }
+  },
+
+  /**
+   * POST partial-ajax a PrimeFaces para traer la siguiente página de la datatable.
+   * @returns {Object|null} { html, viewState } o null si falla
+   */
+  fetchPaginaAjax({ first, cookies, viewState, formName, datatableId }) {
+    try {
+      const dtRef = `${formName}:${datatableId}`;
+      const payload = {
+        'javax.faces.partial.ajax': 'true',
+        'javax.faces.source': dtRef,
+        'javax.faces.partial.execute': dtRef,
+        'javax.faces.partial.render': dtRef,
+        [`${dtRef}_pagination`]: 'true',
+        [`${dtRef}_first`]: String(first),
+        [`${dtRef}_rows`]: String(this.config.pageSize),
+        [`${dtRef}_encodeFeature`]: 'true',
+        [formName]: formName,
+        'javax.faces.ViewState': viewState
+      };
+
+      const response = UrlFetchApp.fetch(this.config.url, {
+        method: 'POST',
+        headers: this.headersAjax(cookies),
+        payload: payload,
+        muteHttpExceptions: true,
+        followRedirects: true
+      });
+
+      if (response.getResponseCode() !== 200) {
+        console.log(`❌ AJAX HTTP ${response.getResponseCode()} en first=${first}`);
+        return null;
+      }
+
+      const xml = response.getContentText();
+      const html = this.extraerUpdate(xml, datatableId);
+      const viewStateNuevo = this.extraerUpdateViewState(xml);
+      return { html, viewState: viewStateNuevo };
+    } catch (error) {
+      console.log(`❌ Error fetchPaginaAjax first=${first}: ${error.message}`);
+      return null;
+    }
+  },
+
+  headersGet() {
+    return {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'es-ES,es;q=0.9'
+    };
+  },
+
+  headersAjax(cookies) {
+    return {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/xml, text/xml, */*; q=0.01',
+      'Accept-Language': 'es-ES,es;q=0.9',
+      'Faces-Request': 'partial/ajax',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Origin': 'https://simi.concejodemedellin.gov.co',
+      'Referer': this.config.url,
+      'Cookie': cookies || ''
+    };
+  },
+
+  extraerCookies(response) {
+    try {
+      const headers = response.getAllHeaders();
+      const raw = headers['Set-Cookie'] || headers['set-cookie'];
+      if (!raw) return '';
+      const lista = Array.isArray(raw) ? raw : [raw];
+      // Quedarse con "name=value" antes del primer ';' por cookie
+      return lista.map(c => String(c).split(';')[0]).join('; ');
+    } catch (error) {
+      return '';
+    }
+  },
+
+  extraerViewState(html) {
+    const m = html.match(/name="javax\.faces\.ViewState"[^>]*value="([^"]+)"/) ||
+              html.match(/id="[^"]*javax\.faces\.ViewState[^"]*"[^>]*value="([^"]+)"/);
+    return m ? m[1] : null;
+  },
+
+  extraerFormName(html, datatableId) {
+    // PrimeFaces emite id="formName:proposiciondt-id" en el contenedor de la datatable.
+    // Buscamos cualquier id que termine en ":datatableId" y nos quedamos con el prefijo.
+    const re = new RegExp(`id="([^":]+):${datatableId}(?:_data)?"`);
+    const m = html.match(re);
+    return m ? m[1] : null;
+  },
+
+  extraerUpdate(xml, datatableId) {
+    const re = new RegExp(`<update[^>]*id="[^"]*${datatableId}[^"]*"[^>]*>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*</update>`);
+    const m = xml.match(re);
+    return m ? m[1] : '';
+  },
+
+  extraerUpdateViewState(xml) {
+    const m = xml.match(/<update[^>]*id="[^"]*ViewState[^"]*"[^>]*>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/update>/);
+    return m ? m[1] : null;
   },
 
   /**
@@ -94,15 +226,10 @@ const ScraperSesiones = {
     const sesiones = [];
 
     try {
-      // PrimeFaces datatable: el id "proposiciondt-id" vive en el tbody, no en <table>
-      const tbodyMatch = html.match(/<tbody[^>]*id="proposiciondt-id_data"[^>]*>([\s\S]*?)<\/tbody>/);
-      if (!tbodyMatch) {
-        console.log('❌ tbody proposiciondt-id_data no encontrado en HTML');
-        return [];
-      }
-
-      // Cada fila de datos lleva data-ri="N" (row index de PrimeFaces)
-      const filasMatch = tbodyMatch[1].match(/<tr[^>]*data-ri="\d+"[^>]*>[\s\S]*?<\/tr>/g);
+      // Funciona tanto para HTML inicial (tbody con id proposiciondt-id_data)
+      // como para respuestas partial-ajax que vienen sin tbody envolvente.
+      // PrimeFaces marca cada fila de datos con data-ri="N".
+      const filasMatch = html.match(/<tr[^>]*data-ri="\d+"[^>]*>[\s\S]*?<\/tr>/g);
       if (!filasMatch) return [];
 
       for (const fila of filasMatch) {
@@ -198,21 +325,6 @@ const ScraperSesiones = {
     } catch (error) {
       console.log(`❌ Error guardando sesiones: ${error.message}`);
       return { nuevos: 0, actualizados: 0, errores: 1 };
-    }
-  },
-
-  /**
-   * Navega a la siguiente página
-   * @returns {boolean} True si pudo navegar
-   */
-  siguientePagina() {
-    try {
-      // En Apps Script, esto se simularía modificando parámetros de URL
-      // Por simplicidad, asumimos paginación por parámetro
-      Utilities.sleep(this.config.delayBetweenPages);
-      return false; // Por ahora, solo primera página
-    } catch (error) {
-      return false;
     }
   },
 
