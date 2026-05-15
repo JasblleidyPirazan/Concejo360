@@ -1,0 +1,19 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DashboardConcejales from '../components/DashboardConcejales.jsx';
+---
+
+<Layout title="Desempeño de Concejales — Concejo 360">
+  <section class="mb-6">
+    <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">Dashboard</p>
+    <h1 class="mt-2 text-3xl md:text-4xl font-bold text-slate-900">
+      Desempeño de Concejales
+    </h1>
+    <p class="mt-3 max-w-2xl text-slate-600">
+      Indicadores de actividad de cada concejal en su periodo: acuerdos y proyectos en los que
+      figura como ponente, junto con el contexto del periodo.
+    </p>
+  </section>
+
+  <DashboardConcejales client:load />
+</Layout>
