@@ -61,13 +61,13 @@ function Skeleton() {
 }
 
 export default function SesionesStats() {
-  const [state, setState] = useState({ status: 'loading', rows: [], error: null, ts: null });
+  const [state, setState] = useState({ status: 'loading', rows: [], totalReal: 0, error: null, ts: null });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/.netlify/functions/api?action=data&tipo=sesiones&limit=500', {
+        const res = await fetch('/.netlify/functions/api?action=data&tipo=sesiones&limit=10000', {
           headers: { Accept: 'application/json' },
         });
         const body = await res.json();
@@ -76,18 +76,21 @@ export default function SesionesStats() {
           setState({
             status: 'error',
             rows: [],
+            totalReal: 0,
             error: body?.error || `HTTP ${res.status}`,
             ts: null,
           });
           return;
         }
         const rows = Array.isArray(body.data) ? body.data : [];
-        setState({ status: 'ok', rows, error: null, ts: body.timestamp || null });
+        const totalReal = body.pagination?.total ?? rows.length;
+        setState({ status: 'ok', rows, totalReal, error: null, ts: body.timestamp || null });
       } catch (err) {
         if (cancelled) return;
         setState({
           status: 'error',
           rows: [],
+          totalReal: 0,
           error: err?.message || 'Error de red',
           ts: null,
         });
@@ -100,15 +103,16 @@ export default function SesionesStats() {
 
   const view = useMemo(() => {
     const rows = state.rows;
-    const total = rows.length;
+    const total = state.totalReal || rows.length;
     const estados = porEstado(rows);
     const conActa = porcentajeConActa(rows);
     const lugares = topLugares(rows, 3);
     const mensual = porMes(rows, 12);
     const recientes = ultimas(rows, 5);
-    const pct = (n) => (total === 0 ? '0%' : `${Math.round((n / total) * 100)}%`);
+    const denom = rows.length || 1;
+    const pct = (n) => `${Math.round((n / denom) * 100)}%`;
     return { total, estados, conActa, lugares, mensual, recientes, pct };
-  }, [state.rows]);
+  }, [state.rows, state.totalReal]);
 
   if (state.status === 'loading') return <Skeleton />;
 
