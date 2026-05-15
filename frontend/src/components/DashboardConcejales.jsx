@@ -23,10 +23,25 @@ export default function DashboardConcejales() {
         return;
       }
       const data = res.data;
-      const periodoInicial = data.periodo_actual || data.periodos[0];
+      const urlNombre = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('nombre')
+        : null;
+
+      let periodoInicial = data.periodo_actual || data.periodos[0];
+      if (urlNombre) {
+        const periodoConCandidato = data.periodos.find((p) =>
+          (data.concejales_por_periodo[p] || []).includes(urlNombre)
+        );
+        if (periodoConCandidato) periodoInicial = periodoConCandidato;
+      }
       const concejalesIniciales = data.concejales_por_periodo[periodoInicial] || [];
+      const concejalInicial =
+        urlNombre && concejalesIniciales.includes(urlNombre)
+          ? urlNombre
+          : concejalesIniciales[0] || '';
+
       setPeriodo(periodoInicial);
-      setConcejal(concejalesIniciales[0] || '');
+      setConcejal(concejalInicial);
       setEstado({ cargando: false, error: null, data });
     });
     return () => {
