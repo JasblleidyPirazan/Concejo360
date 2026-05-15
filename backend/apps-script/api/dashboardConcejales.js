@@ -112,7 +112,8 @@ const DashboardConcejales = {
     const out = {};
     for (const p of PERIODOS) out[p.label] = {
       acuerdos_total: 0, proyectos_total: 0,
-      citaciones: 0, invitaciones: 0, comisiones: 0
+      citaciones: 0, invitaciones: 0, comisiones: 0,
+      proyectos_por_estado: {}
     };
 
     const sumar = (filas, campoFecha, key, campoAno) => {
@@ -134,6 +135,14 @@ const DashboardConcejales = {
     sumar(citaciones, 'fecha', 'citaciones');
     sumar(invitaciones, 'fecha', 'invitaciones');
     sumar(comisiones, 'fecha_aprobacion', 'comisiones');
+
+    for (const fila of proyectos) {
+      const year = this._anoDesdeFecha(fila.fecha);
+      const periodo = getPeriodo(year);
+      if (!periodo) continue;
+      const estado = (fila.estado || 'Sin estado').toString().trim() || 'Sin estado';
+      out[periodo].proyectos_por_estado[estado] = (out[periodo].proyectos_por_estado[estado] || 0) + 1;
+    }
 
     return out;
   },
