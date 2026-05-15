@@ -55,6 +55,8 @@ function doGet(e) {
         return obtenerDashboard();
       case 'data':
         return obtenerDatos(e.parameter);
+      case 'resumen-concejales':
+        return respuestaExitosa(obtenerResumenConcejales());
       case 'health':
         return respuestaExitosa({ status: 'OK', timestamp: new Date() });
       default:
