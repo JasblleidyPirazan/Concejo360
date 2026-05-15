@@ -1,4 +1,4 @@
-const ALLOWED_ACTIONS = new Set(['data', 'status', 'health', 'resumen-concejales']);
+const ALLOWED_ACTIONS = new Set(['data', 'status', 'health', 'resumen-concejales', 'panorama-concejo']);
 const ALLOWED_TIPOS = new Set([
   'sesiones',
   'proyectos',

@@ -65,6 +65,8 @@ function _handleGet(e) {
         return obtenerDatos(e.parameter);
       case 'resumen-concejales':
         return respuestaExitosa({ data: obtenerResumenConcejales() });
+      case 'panorama-concejo':
+        return respuestaExitosa({ data: obtenerPanoramaConcejo(e.parameter) });
       case 'health':
         return respuestaExitosa({ status: 'OK', timestamp: new Date() });
       default:
