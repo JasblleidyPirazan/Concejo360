@@ -135,9 +135,16 @@ function ejecutarScrapingCompleto() {
     }
   }
   
+  try {
+    const derivados = AgregadorDerivados.actualizarTodo();
+    resultados.push(derivados);
+  } catch (error) {
+    resultados.push({ tipo: 'derivados', success: false, error: error.message, timestamp: new Date() });
+  }
+
   const resumen = calcularResumen(resultados);
   const fin = new Date();
-  
+
   console.log(`✅ Scraping completo finalizado: ${resumen.exitosos}/${tipos.length} exitosos`);
   
   return {

@@ -44,8 +44,39 @@ const SHEETS_CONFIG = {
     nombre: 'citaciones_maestro',
     campos: ['consecutivo', 'titulo', 'estado', 'fecha', 'descripcion'],
     tipos: ['string', 'string', 'string', 'date', 'string']
+  },
+  concejales: {
+    nombre: 'concejales',
+    campos: ['concejal', 'ano', 'periodo'],
+    tipos: ['string', 'number', 'string']
+  },
+  bancadas: {
+    nombre: 'bancadas',
+    campos: ['bancada', 'ano', 'periodo'],
+    tipos: ['string', 'number', 'string']
   }
 };
+
+// Periodos del Concejo de Medellín (rango inclusivo)
+const PERIODOS = [
+  { label: '2024-2027', desde: 2024, hasta: 2027 },
+  { label: '2020-2023', desde: 2020, hasta: 2023 },
+  { label: '2016-2019', desde: 2016, hasta: 2019 },
+  { label: '2012-2015', desde: 2012, hasta: 2015 },
+  { label: '2008-2011', desde: 2008, hasta: 2011 }
+];
+
+/**
+ * Devuelve el label del periodo para un año, o null si está fuera de rango.
+ * @param {number} year
+ * @returns {string|null}
+ */
+function getPeriodo(year) {
+  if (!year || isNaN(year)) return null;
+  const y = parseInt(year);
+  const p = PERIODOS.find(p => y >= p.desde && y <= p.hasta);
+  return p ? p.label : null;
+}
 
 // IDs de Google Drive y Sheets (configurar después)
 const GOOGLE_IDS = {
