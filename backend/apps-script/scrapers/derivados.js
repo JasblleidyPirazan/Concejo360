@@ -31,9 +31,10 @@ const FUENTES_CONCEJALES = [
 ];
 
 // Roles que cuentan como concejal real. Match por substring sobre el rol
-// normalizado (uppercase + sin tildes), por lo que "COORDINADORA",
-// "PONENTE" y "PROPONENTE" caen todos.
-const ROLES_CONCEJAL = ['COORDINADOR', 'PONENTE'];
+// normalizado (uppercase + sin tildes). 'PONENTE' captura tambien
+// 'PROPONENTE'. Se excluye 'COORDINADOR' porque en SIMI se usa para
+// funcionarios de la administracion, no para concejales.
+const ROLES_CONCEJAL = ['PONENTE'];
 
 const FUENTES_BANCADAS = [
   {
