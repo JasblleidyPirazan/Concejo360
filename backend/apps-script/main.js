@@ -17,63 +17,54 @@ const SCRAPERS = {
 /**
  * Maneja requests POST desde el frontend
  * @param {Object} e - Event object con postData
- * @returns {GoogleAppsScript.Content.TextOutput} Respuesta JSON
+ * @returns {Object} Respuesta JSON
  */
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     const { action, type, params } = data;
-
+    
     switch(action) {
       case 'scrape':
-        return jsonOutput(ejecutarScraping(type, params));
+        return ejecutarScraping(type, params);
       case 'scrape_all':
-        return jsonOutput(ejecutarScrapingCompleto());
+        return ejecutarScrapingCompleto();
       case 'test':
-        return jsonOutput(ejecutarTest(type));
+        return ejecutarTest(type);
       case 'status':
-        return jsonOutput(obtenerEstadoSistema());
+        return obtenerEstadoSistema();
       default:
-        return jsonOutput(respuestaError('Acción no válida', 'INVALID_ACTION'));
+        return respuestaError('Acción no válida', 'INVALID_ACTION');
     }
   } catch (error) {
-    return jsonOutput(respuestaError(`Error procesando request: ${error.message}`, 'REQUEST_ERROR'));
+    return respuestaError(`Error procesando request: ${error.message}`, 'REQUEST_ERROR');
   }
 }
 
 /**
  * Maneja requests GET para datos y dashboard
  * @param {Object} e - Event object con parameters
- * @returns {GoogleAppsScript.Content.TextOutput} Respuesta JSON
+ * @returns {Object} Respuesta JSON
  */
 function doGet(e) {
   const action = e.parameter.action || 'dashboard';
-
+  
   try {
     switch(action) {
       case 'dashboard':
-        return jsonOutput(obtenerDashboard());
+        return obtenerDashboard();
       case 'data':
-        return jsonOutput(obtenerDatos(e.parameter));
+        return obtenerDatos(e.parameter);
+      case 'resumen-concejales':
+        return respuestaExitosa(obtenerResumenConcejales());
       case 'health':
-        return jsonOutput(respuestaExitosa({ status: 'OK', timestamp: new Date() }));
+        return respuestaExitosa({ status: 'OK', timestamp: new Date() });
       default:
-        return jsonOutput(respuestaError('Endpoint no encontrado', 'ENDPOINT_NOT_FOUND'));
+        return respuestaError('Endpoint no encontrado', 'ENDPOINT_NOT_FOUND');
     }
   } catch (error) {
-    return jsonOutput(respuestaError(`Error en GET: ${error.message}`, 'GET_ERROR'));
+    return respuestaError(`Error en GET: ${error.message}`, 'GET_ERROR');
   }
-}
-
-/**
- * Envuelve un payload como TextOutput JSON para web apps de Apps Script.
- * @param {Object} payload - Objeto a serializar
- * @returns {GoogleAppsScript.Content.TextOutput} Respuesta TextOutput
- */
-function jsonOutput(payload) {
-  return ContentService
-    .createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
@@ -405,170 +396,4 @@ function verificarAccesoDrive() {
   } catch (error) {
     return false;
   }
-}
-
-// === Wrappers para ejecutar desde el editor (Run menu) ===
-
-function testSesiones()      { return ejecutarScraping('sesiones'); }
-function testProyectos()     { return ejecutarScraping('proyectos'); }
-function testAcuerdos()      { return ejecutarScraping('acuerdos'); }
-function testComisiones()    { return ejecutarScraping('comisiones'); }
-function testInvitaciones()  { return ejecutarScraping('invitaciones'); }
-function testCitaciones()    { return ejecutarScraping('citaciones'); }
-function testScrapingCompleto() { return ejecutarScrapingCompleto(); }
-
-// === Control del backfill de sesiones (resume entre corridas) ===
-
-/**
- * Lee el resume offset actual de sesiones desde ScriptProperties.
- * Si > 0, la próxima corrida de testSesiones reanudará desde ahí.
- * Si = 0 (o no existe), la próxima corrida arranca desde la página 1.
- */
-function verResumeOffsetSesiones() {
-  const offset = ScraperSesiones.leerResumeOffset();
-  console.log(`Resume offset sesiones = ${offset}`);
-  return offset;
-}
-
-/**
- * Borra el resume offset. Usar cuando se quiere forzar a la próxima
- * corrida a empezar desde el principio (por ejemplo, tras vaciar el
- * sheet, o si se detecto que el offset quedo desactualizado).
- */
-function resetSesionesBackfill() {
-  ScraperSesiones.limpiarResumeOffset();
-  console.log('🔄 Resume offset de sesiones reseteado a 0');
-  return { reset: true };
-}
-
-/**
- * Muestra el resume offset actual de acuerdos.
- */
-function verResumeOffsetAcuerdos() {
-  const offset = ScraperAcuerdos.leerResumeOffset();
-  console.log(`Resume offset acuerdos = ${offset}`);
-  return offset;
-}
-
-/**
- * Borra el resume offset de acuerdos. Forzar restart desde page 1.
- */
-function resetAcuerdosBackfill() {
-  ScraperAcuerdos.limpiarResumeOffset();
-  console.log('🔄 Resume offset de acuerdos reseteado a 0');
-  return { reset: true };
-}
-
-/**
- * Muestra el resume offset actual de citaciones.
- */
-function verResumeOffsetCitaciones() {
-  const offset = ScraperCitaciones.leerResumeOffset();
-  console.log(`Resume offset citaciones = ${offset}`);
-  return offset;
-}
-
-/**
- * Borra el resume offset de citaciones.
- */
-function resetCitacionesBackfill() {
-  ScraperCitaciones.limpiarResumeOffset();
-  console.log('🔄 Resume offset de citaciones reseteado a 0');
-  return { reset: true };
-}
-
-/**
- * Muestra el resume offset actual de invitaciones.
- */
-function verResumeOffsetInvitaciones() {
-  const offset = ScraperInvitaciones.leerResumeOffset();
-  console.log(`Resume offset invitaciones = ${offset}`);
-  return offset;
-}
-
-/**
- * Borra el resume offset de invitaciones.
- */
-function resetInvitacionesBackfill() {
-  ScraperInvitaciones.limpiarResumeOffset();
-  console.log('🔄 Resume offset de invitaciones reseteado a 0');
-  return { reset: true };
-}
-
-/**
- * Muestra el resume offset actual de comisiones.
- */
-function verResumeOffsetComisiones() {
-  const offset = ScraperComisiones.leerResumeOffset();
-  console.log(`Resume offset comisiones = ${offset}`);
-  return offset;
-}
-
-/**
- * Borra el resume offset de comisiones.
- */
-function resetComisionesBackfill() {
-  ScraperComisiones.limpiarResumeOffset();
-  console.log('🔄 Resume offset de comisiones reseteado a 0');
-  return { reset: true };
-}
-
-// === Wrappers de trigger (visibles en el dropdown de main.gs) ===
-// Las funciones reales viven en triggers/scheduled.js pero exponemos
-// alias aquí para que aparezcan siempre en el selector de funciones.
-
-function instalarTriggerSesiones12h() { return setupTriggerSesiones12h(); }
-function quitarTriggerSesiones()      { return removerTriggerSesiones(); }
-function verTriggers()                { return listarTriggers(); }
-
-/**
- * Diagnostico: fetches la URL del scraper de sesiones y reporta
- * que HTML llega, IDs presentes, tablas, y si aparece la data esperada.
- * Ejecutar desde el editor para diagnosticar cuando el scraper trae 0 filas.
- */
-function diagSesiones() {
-  const url = URLS.sesiones;
-  console.log('GET ' + url);
-
-  const response = UrlFetchApp.fetch(url, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'es-ES,es;q=0.9'
-    },
-    muteHttpExceptions: true,
-    followRedirects: true
-  });
-
-  const code = response.getResponseCode();
-  const html = response.getContentText();
-  console.log('HTTP ' + code + ' | bytes: ' + html.length);
-
-  const headers = response.getAllHeaders();
-  console.log('Content-Type: ' + (headers['Content-Type'] || headers['content-type']));
-  console.log('Set-Cookie: ' + (headers['Set-Cookie'] || headers['set-cookie'] || '(ninguna)'));
-
-  const tablas = html.match(/<table[^>]*>/g) || [];
-  console.log('Tablas encontradas: ' + tablas.length);
-  tablas.slice(0, 10).forEach((t, i) => console.log('  [' + i + '] ' + t));
-
-  const ids = [...new Set((html.match(/id="[^"]+"/g) || []))];
-  console.log('IDs unicos: ' + ids.length);
-  ids.filter(id => /dt|table|sesion|debate|proposicion/i.test(id))
-     .slice(0, 20)
-     .forEach(id => console.log('  ' + id));
-
-  const tieneMarcadorDatos = /sesi[oó]n no\.|recinto de sesiones|domingo, 24 de mayo/i.test(html);
-  console.log('Contiene datos visibles (texto de la pagina): ' + tieneMarcadorDatos);
-
-  const viewState = html.match(/javax\.faces\.ViewState[^"]*"[^"]*"\s*value="([^"]+)"/);
-  console.log('ViewState presente: ' + (viewState ? 'si' : 'no'));
-
-  console.log('--- excerpt (primeros 1200 chars) ---');
-  console.log(html.substring(0, 1200));
-  console.log('--- excerpt (chars 1200-2400) ---');
-  console.log(html.substring(1200, 2400));
-
-  return { code: code, bytes: html.length, tablas: tablas.length };
 }
