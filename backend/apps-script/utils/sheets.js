@@ -35,10 +35,20 @@ const SheetsUtils = {
   },
 
   /**
-   * Guardar datos en Google Sheets
-   * @param {string} sheetName - Nombre de la hoja
-   * @param {Array} datos - Array de objetos a guardar
-   * @returns {Object} Estadísticas de guardado
+   * Guardar datos en Google Sheets con upsert masivo (batch).
+   *
+   * Estrategia: leer toda la hoja una sola vez, hacer merge en memoria
+   * indexado por la columna clave (numero o consecutivo), y reescribir
+   * el body en una sola llamada setValues. Esto evita el O(N²) del
+   * read-per-row anterior y permite manejar miles de filas en segundos.
+   *
+   * Merge-friendly: al actualizar, las columnas presentes en `dato`
+   * pisan al existente; las que no estén en `dato` conservan el valor
+   * actual del sheet (no se borran).
+   *
+   * @param {string} sheetName - Nombre de la hoja destino
+   * @param {Array} datos - Objetos a insertar/actualizar
+   * @returns {Object} { nuevos, actualizados, errores }
    */
   guardar(sheetName, datos) {
     try {
@@ -48,27 +58,89 @@ const SheetsUtils = {
 
       const sheet = this.obtenerOCrearHoja(sheetName);
       const config = SHEETS_CONFIG[sheetName.replace('_maestro', '')];
-      const stats = { nuevos: 0, actualizados: 0, errores: 0 };
 
-      datos.forEach(dato => {
-        try {
-          const existente = this.buscarPorClave(sheet, dato);
-          if (existente) {
-            this.actualizar(sheet, existente.row, dato);
-            stats.actualizados++;
-          } else {
-            this.insertar(sheet, dato, config);
-            stats.nuevos++;
+      // 1) Lectura única de toda la hoja
+      const lastRow = sheet.getLastRow();
+      const lastCol = sheet.getLastColumn();
+      let headers;
+      let filas;
+
+      if (lastRow >= 1 && lastCol >= 1) {
+        const valores = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+        headers = valores[0];
+        filas = valores.slice(1);
+      } else if (config) {
+        headers = config.campos.slice();
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        filas = [];
+      } else {
+        headers = Object.keys(datos[0]);
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        filas = [];
+      }
+
+      // 2) Determinar columnas clave (puede ser compuesta vía config.claveUnica).
+      //    Default: 'numero' o 'consecutivo' simple si la config no especifica.
+      const claveCampos = (config && Array.isArray(config.claveUnica) && config.claveUnica.length > 0)
+        ? config.claveUnica
+        : (headers.indexOf('numero') !== -1 ? ['numero']
+           : headers.indexOf('consecutivo') !== -1 ? ['consecutivo']
+           : null);
+      if (!claveCampos) throw new Error(`No se encontro columna clave (numero/consecutivo) en ${sheetName}`);
+
+      // Indices de cada campo clave en el array de headers
+      const claveIdxs = claveCampos.map(c => headers.indexOf(c));
+      for (let i = 0; i < claveIdxs.length; i++) {
+        if (claveIdxs[i] === -1) throw new Error(`Campo de clave '${claveCampos[i]}' no esta en headers de ${sheetName}`);
+      }
+
+      // Normaliza un valor para que la clave sea estable (Date → timestamp, resto → string trim)
+      const normalizar = (v) => {
+        if (v == null) return '';
+        if (v instanceof Date) return String(v.getTime());
+        return String(v).trim();
+      };
+      const buildKeyRow = (row) => claveIdxs.map(i => normalizar(row[i])).join('|');
+      const buildKeyDato = (dato) => claveCampos.map(c => normalizar(dato[c])).join('|');
+
+      // 3) Indice clave -> rowIndex (en filas[])
+      const indice = new Map();
+      const claveVacia = claveCampos.map(() => '').join('|');
+      for (let i = 0; i < filas.length; i++) {
+        const k = buildKeyRow(filas[i]);
+        if (k && k !== claveVacia) indice.set(k, i);
+      }
+
+      // 4) Aplicar upsert en memoria
+      const stats = { nuevos: 0, actualizados: 0, errores: 0 };
+      for (const dato of datos) {
+        const k = buildKeyDato(dato);
+        if (!k || k === claveVacia) { stats.errores++; continue; }
+
+        if (indice.has(k)) {
+          // Update merge-friendly: solo pisar columnas presentes en dato
+          const row = filas[indice.get(k)];
+          for (let c = 0; c < headers.length; c++) {
+            const h = headers[c];
+            if (dato[h] !== undefined && dato[h] !== null) row[c] = dato[h];
           }
-        } catch (error) {
-          console.log(`❌ Error guardando registro: ${error.message}`);
-          stats.errores++;
+          stats.actualizados++;
+        } else {
+          const nuevaFila = headers.map(h => (dato[h] === undefined || dato[h] === null) ? '' : dato[h]);
+          indice.set(k, filas.length);
+          filas.push(nuevaFila);
+          stats.nuevos++;
         }
-      });
+      }
+
+      // 5) Reescribir el body en una sola operación
+      if (filas.length > 0) {
+        sheet.getRange(2, 1, filas.length, headers.length).setValues(filas);
+      }
 
       return stats;
     } catch (error) {
-      console.log(`❌ Error en guardar: ${error.message}`);
+      console.log(`❌ Error en guardar batch ${sheetName}: ${error.message}`);
       return { nuevos: 0, actualizados: 0, errores: 1 };
     }
   },
@@ -150,7 +222,8 @@ const SheetsUtils = {
   },
 
   actualizar(sheet, row, dato) {
-    const valores = this.objetoAArray(dato);
+    const config = SHEETS_CONFIG[sheet.getName().replace('_maestro', '')];
+    const valores = this.objetoAArray(dato, config);
     sheet.getRange(row, 1, 1, valores.length).setValues([valores]);
   },
 
