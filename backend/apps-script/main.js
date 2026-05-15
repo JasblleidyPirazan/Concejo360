@@ -20,10 +20,14 @@ const SCRAPERS = {
  * @returns {Object} Respuesta JSON
  */
 function doPost(e) {
+  return _jsonResponse(_handlePost(e));
+}
+
+function _handlePost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     const { action, type, params } = data;
-    
+
     switch(action) {
       case 'scrape':
         return ejecutarScraping(type, params);
@@ -44,11 +48,15 @@ function doPost(e) {
 /**
  * Maneja requests GET para datos y dashboard
  * @param {Object} e - Event object con parameters
- * @returns {Object} Respuesta JSON
+ * @returns {GoogleAppsScript.Content.TextOutput} Respuesta JSON envuelta para Apps Script
  */
 function doGet(e) {
+  return _jsonResponse(_handleGet(e));
+}
+
+function _handleGet(e) {
   const action = e.parameter.action || 'dashboard';
-  
+
   try {
     switch(action) {
       case 'dashboard':
@@ -65,6 +73,16 @@ function doGet(e) {
   } catch (error) {
     return respuestaError(`Error en GET: ${error.message}`, 'GET_ERROR');
   }
+}
+
+/**
+ * Envuelve cualquier objeto JS en una respuesta JSON valida para Apps Script.
+ * Sin esto, doGet/doPost devuelven el error "el valor de retorno no es admitido".
+ */
+function _jsonResponse(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
