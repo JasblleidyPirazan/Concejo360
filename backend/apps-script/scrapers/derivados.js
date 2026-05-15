@@ -16,7 +16,8 @@ const FUENTES_CONCEJALES = [
     claveMaestro: 'no_acuerdo',
     campoFecha: 'fecha_sancion',
     campoAno: 'ano_sancion',
-    campoNombre: 'concejal'
+    campoNombre: 'concejal',
+    campoRol: 'rol'
   },
   {
     detalle: 'proyectos_detalle',
@@ -24,9 +25,15 @@ const FUENTES_CONCEJALES = [
     claveDetalle: 'numero',
     claveMaestro: 'numero',
     campoFecha: 'fecha',
-    campoNombre: 'concejal'
+    campoNombre: 'concejal',
+    campoRol: 'rol'
   }
 ];
+
+// Roles que cuentan como concejal real. Match por substring sobre el rol
+// normalizado (uppercase + sin tildes), por lo que "COORDINADORA",
+// "PONENTE" y "PROPONENTE" caen todos.
+const ROLES_CONCEJAL = ['COORDINADOR', 'PONENTE'];
 
 const FUENTES_BANCADAS = [
   {
@@ -75,6 +82,7 @@ const AgregadorDerivados = {
     const set = new Map();
     let descartadasSinAno = 0;
     let descartadasFueraDeRango = 0;
+    let descartadasPorRol = 0;
 
     for (const fuente of fuentes) {
       const detalle = SheetsUtils.obtener(fuente.detalle);
@@ -88,6 +96,11 @@ const AgregadorDerivados = {
       for (const fila of detalle) {
         const clave = fila[fuente.claveDetalle];
         if (clave === undefined || clave === null || clave === '') continue;
+
+        if (fuente.campoRol && !this._rolEsConcejal(fila[fuente.campoRol])) {
+          descartadasPorRol++;
+          continue;
+        }
 
         const maestroFila = maestroIndex.get(String(clave).trim());
         const year = this._resolverAno(maestroFila, fuente);
@@ -108,7 +121,7 @@ const AgregadorDerivados = {
       }
     }
 
-    console.log(`📊 Tuplas únicas: ${set.size} | sin año: ${descartadasSinAno} | fuera de rango: ${descartadasFueraDeRango}`);
+    console.log(`📊 Tuplas únicas: ${set.size} | sin año: ${descartadasSinAno} | fuera de rango: ${descartadasFueraDeRango} | por rol: ${descartadasPorRol}`);
     return Array.from(set.values()).sort((a, b) => {
       if (a.year !== b.year) return b.year - a.year;
       return a.nombre.localeCompare(b.nombre);
@@ -125,6 +138,12 @@ const AgregadorDerivados = {
       }
     }
     return index;
+  },
+
+  _rolEsConcejal(rol) {
+    if (!rol) return false;
+    const norm = ValidationUtils.normalizarNombre(rol);
+    return ROLES_CONCEJAL.some(r => norm.includes(r));
   },
 
   _resolverAno(maestroFila, fuente) {
