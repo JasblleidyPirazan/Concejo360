@@ -11,27 +11,20 @@
 const FUENTES_CONCEJALES = [
   {
     detalle: 'acuerdos_concejales',
-    maestro: 'acuerdos_maestro',
-    claveDetalle: ['numero', 'acuerdo_numero', 'numero_acuerdo'],
-    claveMaestro: 'numero',
-    campoFecha: 'fecha_aprobacion',
-    campoNombre: ['concejal', 'nombre', 'concejales']
+    maestro: 'acuerdos_detalle',
+    claveDetalle: 'numero',
+    claveMaestro: 'no_acuerdo',
+    campoFecha: 'fecha_sancion',
+    campoAno: 'ano_sancion',
+    campoNombre: 'concejal'
   },
   {
     detalle: 'proyectos_detalle',
     maestro: 'proyectos_maestro',
-    claveDetalle: ['numero', 'proyecto_numero', 'numero_proyecto'],
+    claveDetalle: 'numero',
     claveMaestro: 'numero',
     campoFecha: 'fecha',
-    campoNombre: ['proponente', 'concejal', 'nombre', 'proponentes']
-  },
-  {
-    detalle: 'comisiones_detalle_integrantes',
-    maestro: 'comisiones_maestro',
-    claveDetalle: ['consecutivo', 'comision_consecutivo', 'numero'],
-    claveMaestro: 'consecutivo',
-    campoFecha: 'fecha_aprobacion',
-    campoNombre: ['integrante', 'concejal', 'nombre']
+    campoNombre: 'concejal'
   }
 ];
 
@@ -39,18 +32,18 @@ const FUENTES_BANCADAS = [
   {
     detalle: 'citaciones_detalleBa',
     maestro: 'citaciones_maestro',
-    claveDetalle: ['consecutivo', 'citacion_consecutivo', 'numero'],
+    claveDetalle: 'consecutivo',
     claveMaestro: 'consecutivo',
     campoFecha: 'fecha',
-    campoNombre: ['bancada', 'nombre']
+    campoNombre: 'bancadas'
   },
   {
     detalle: 'invitaciones_detalleBa',
     maestro: 'invitaciones_maestro',
-    claveDetalle: ['consecutivo', 'invitacion_consecutivo', 'numero'],
+    claveDetalle: 'consecutivo',
     claveMaestro: 'consecutivo',
     campoFecha: 'fecha',
-    campoNombre: ['bancada', 'nombre']
+    campoNombre: 'bancadas'
   }
 ];
 
@@ -80,7 +73,7 @@ const AgregadorDerivados = {
 
   _extraerTuplas(fuentes) {
     const set = new Map();
-    let descartadasSinFecha = 0;
+    let descartadasSinAno = 0;
     let descartadasFueraDeRango = 0;
 
     for (const fuente of fuentes) {
@@ -93,18 +86,17 @@ const AgregadorDerivados = {
       const maestroIndex = this._indexarMaestro(fuente.maestro, fuente.claveMaestro);
 
       for (const fila of detalle) {
-        const clave = this._primerValor(fila, fuente.claveDetalle);
-        if (!clave) continue;
+        const clave = fila[fuente.claveDetalle];
+        if (clave === undefined || clave === null || clave === '') continue;
 
         const maestroFila = maestroIndex.get(String(clave).trim());
-        const fecha = maestroFila ? maestroFila[fuente.campoFecha] : null;
-        if (!fecha) { descartadasSinFecha++; continue; }
+        const year = this._resolverAno(maestroFila, fuente);
+        if (!year) { descartadasSinAno++; continue; }
 
-        const year = this._extraerAno(fecha);
         const periodo = getPeriodo(year);
         if (!periodo) { descartadasFueraDeRango++; continue; }
 
-        const nombresRaw = this._extraerNombres(fila, fuente.campoNombre);
+        const nombresRaw = this._extraerNombres(fila[fuente.campoNombre]);
         for (const raw of nombresRaw) {
           const nombre = ValidationUtils.normalizarNombre(raw);
           if (!nombre) continue;
@@ -116,8 +108,11 @@ const AgregadorDerivados = {
       }
     }
 
-    console.log(`📊 Tuplas únicas: ${set.size} | sin fecha: ${descartadasSinFecha} | fuera de rango: ${descartadasFueraDeRango}`);
-    return Array.from(set.values());
+    console.log(`📊 Tuplas únicas: ${set.size} | sin año: ${descartadasSinAno} | fuera de rango: ${descartadasFueraDeRango}`);
+    return Array.from(set.values()).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return a.nombre.localeCompare(b.nombre);
+    });
   },
 
   _indexarMaestro(nombreHoja, clave) {
@@ -132,28 +127,27 @@ const AgregadorDerivados = {
     return index;
   },
 
-  _primerValor(fila, candidatos) {
-    for (const c of candidatos) {
-      if (fila[c] !== undefined && fila[c] !== null && fila[c] !== '') return fila[c];
+  _resolverAno(maestroFila, fuente) {
+    if (!maestroFila) return null;
+    if (fuente.campoAno && maestroFila[fuente.campoAno]) {
+      const y = parseInt(maestroFila[fuente.campoAno]);
+      if (!isNaN(y)) return y;
     }
-    return null;
+    const fecha = maestroFila[fuente.campoFecha];
+    if (!fecha) return null;
+    if (fecha instanceof Date) return fecha.getFullYear();
+    const d = new Date(fecha);
+    return isNaN(d.getTime()) ? null : d.getFullYear();
   },
 
-  _extraerNombres(fila, candidatos) {
-    const valor = this._primerValor(fila, candidatos);
-    if (!valor) return [];
+  _extraerNombres(valor) {
+    if (valor === undefined || valor === null || valor === '') return [];
     if (Array.isArray(valor)) return valor;
     const s = String(valor);
     if (s.includes(',') || s.includes(';') || s.includes('|')) {
       return s.split(/[,;|]/);
     }
     return [s];
-  },
-
-  _extraerAno(fecha) {
-    if (fecha instanceof Date) return fecha.getFullYear();
-    const d = new Date(fecha);
-    return isNaN(d.getTime()) ? null : d.getFullYear();
   },
 
   _escribirHoja(nombreHoja, columnaNombre, tuplas) {
