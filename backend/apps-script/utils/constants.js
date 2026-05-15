@@ -62,8 +62,9 @@ const SHEETS_CONFIG = {
   },
   comisiones: {
     nombre: 'comisiones_maestro',
-    campos: ['consecutivo', 'titulo', 'estado', 'fecha_aprobacion', 'tipo'],
-    tipos: ['string', 'string', 'string', 'date', 'string']
+    campos: ['fecha', 'acta', 'consecutivo', 'titulo', 'estado', 'descripcion', 'coordinador'],
+    tipos: ['date', 'string', 'string', 'string', 'string', 'string', 'string'],
+    claveUnica: ['consecutivo']
   },
   invitaciones: {
     nombre: 'invitaciones_maestro',

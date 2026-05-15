@@ -5,17 +5,24 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          50: '#eff8ff',
-          100: '#dbeefe',
-          500: '#2563eb',
-          600: '#1d4ed8',
-          700: '#1e40af',
-          900: '#0c1e4d',
+          50:  '#faf0ff',
+          100: '#f0dafa',
+          200: '#ddb4f0',
+          500: '#9b33c7',
+          600: '#7010a6',
+          700: '#590884',
+          800: '#420664',
+          900: '#2b033e',
+        },
+        accent: {
+          400: '#ffdf33',
+          500: '#fcd700',
+          600: '#d6b600',
         },
         estado: {
-          programada: '#2563eb',
+          programada: '#7010a6',
           realizada: '#16a34a',
-          pendiente: '#ca8a04',
+          pendiente: '#fcd700',
         },
       },
       fontFamily: {

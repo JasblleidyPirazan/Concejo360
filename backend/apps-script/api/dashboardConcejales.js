@@ -19,6 +19,25 @@
  * }
  */
 
+const NOMBRES_NO_CONCEJAL = new Set([
+  'ALCALDE', 'CONCEJAL', 'CONTRALOR',
+  'PERSONERIA DE MEDELLIN', 'CONTRALORIA GENERAL DE MEDELLIN',
+  'ALCALDIA DE MEDELLIN', 'EMPRESAS PUBLICAS DE MEDELLIN',
+  'DEPARTAMENTO ADMINISTRATIVO DE PLANEACION',
+  'AGENCIA DE EDUCACION SUPERIOR DE MEDELLIN, SAPIENCIA'
+]);
+
+const PREFIJOS_NO_CONCEJAL = [
+  'SECRETARIA ', 'SECRETARIA DE',
+  'PARTIDO ',
+  'DEPARTAMENTO ',
+  'AGENCIA ',
+  'EMPRESAS ',
+  'CONTRALORIA ',
+  'PERSONERIA ',
+  'ALCALDIA '
+];
+
 const DashboardConcejales = {
   obtener() {
     const proyectos = SheetsUtils.obtener('proyectos_maestro');
@@ -73,6 +92,7 @@ const DashboardConcejales = {
       if (!this._esPonente(fila.rol)) continue;
       const nombre = ValidationUtils.normalizarNombre(fila.concejal);
       if (!nombre) continue;
+      if (!this._esConcejalReal(nombre)) continue;
 
       const maestro = acuerdosIndex.get(String(fila.numero || '').trim());
       const year = this._anoDesdeAcuerdo(maestro);
@@ -91,6 +111,7 @@ const DashboardConcejales = {
       if (!this._esPonente(fila.rol)) continue;
       const nombre = ValidationUtils.normalizarNombre(fila.concejal);
       if (!nombre) continue;
+      if (!this._esConcejalReal(nombre)) continue;
 
       const maestro = proyectosIndex.get(String(fila.numero || '').trim());
       if (!maestro) continue;
@@ -134,7 +155,7 @@ const DashboardConcejales = {
     sumar(acuerdosDetalle, 'fecha_sancion', 'acuerdos_total', 'ano_sancion');
     sumar(citaciones, 'fecha', 'citaciones');
     sumar(invitaciones, 'fecha', 'invitaciones');
-    sumar(comisiones, 'fecha_aprobacion', 'comisiones');
+    sumar(comisiones, 'fecha', 'comisiones');
 
     for (const fila of proyectos) {
       const year = this._anoDesdeFecha(fila.fecha);
@@ -166,6 +187,15 @@ const DashboardConcejales = {
   _esPonente(rol) {
     if (!rol) return false;
     return ValidationUtils.normalizarNombre(rol).includes('PONENTE');
+  },
+
+  _esConcejalReal(nombre) {
+    if (!nombre) return false;
+    if (NOMBRES_NO_CONCEJAL.has(nombre)) return false;
+    for (const prefijo of PREFIJOS_NO_CONCEJAL) {
+      if (nombre.startsWith(prefijo)) return false;
+    }
+    return true;
   },
 
   _indexar(filas, clave) {
