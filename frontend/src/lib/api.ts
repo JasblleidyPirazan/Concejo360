@@ -70,6 +70,7 @@ export interface KpisPeriodo {
   citaciones: number;
   invitaciones: number;
   comisiones: number;
+  proyectos_por_estado: Record<string, number>;
 }
 
 export interface ResumenConcejales {
