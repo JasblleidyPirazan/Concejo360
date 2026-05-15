@@ -148,6 +148,21 @@ const ValidationUtils = {
   },
 
   /**
+   * Normaliza nombre de persona o bancada: trim + uppercase + sin tildes.
+   * Usado para deduplicar concejales/bancadas que vienen con casing/acentos
+   * inconsistentes entre fuentes.
+   * @param {string} nombre
+   * @returns {string}
+   */
+  normalizarNombre(nombre) {
+    if (!nombre) return '';
+    return this.limpiarTexto(nombre)
+               .toUpperCase()
+               .normalize('NFD')
+               .replace(/[\u0300-\u036f]/g, "");
+  },
+
+  /**
    * Normaliza estado para consistencia
    * @param {string} estado - Estado a normalizar
    * @returns {string} Estado normalizado
