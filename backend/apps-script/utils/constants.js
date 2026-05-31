@@ -60,6 +60,12 @@ const SHEETS_CONFIG = {
     tipos: ['string', 'string', 'string', 'string'],
     claveUnica: ['numero', 'rol', 'concejal']
   },
+  acuerdos_tiempos: {
+    nombre: 'acuerdos_tiempos',
+    campos: ['id_acuerdo', 'acuerdo', 'actividad', 'fecha', 'fecha_extraccion'],
+    tipos: ['string', 'string', 'string', 'date', 'date'],
+    claveUnica: ['id_acuerdo', 'actividad']
+  },
   comisiones: {
     nombre: 'comisiones_maestro',
     campos: ['fecha', 'acta', 'consecutivo', 'titulo', 'estado', 'descripcion', 'coordinador'],

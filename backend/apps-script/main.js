@@ -9,6 +9,7 @@ const SCRAPERS = {
   sesiones: () => ScraperSesiones.ejecutar(),
   proyectos: () => ScraperProyectos.ejecutar(),
   acuerdos: () => ScraperAcuerdos.ejecutar(),
+  acuerdos_tiempos: () => ScraperAcuerdosTiempos.ejecutar(),
   comisiones: () => ScraperComisiones.ejecutar(),
   invitaciones: () => ScraperInvitaciones.ejecutar(),
   citaciones: () => ScraperCitaciones.ejecutar()
