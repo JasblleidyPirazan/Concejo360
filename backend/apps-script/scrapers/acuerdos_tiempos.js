@@ -1,3 +1,8 @@
+/** Punto de entrada para ejecutar manualmente desde el editor de Apps Script. */
+function ejecutarAcuerdosTiempos() {
+  return ScraperAcuerdosTiempos.ejecutar();
+}
+
 /**
  * Scraper de tiempos de estados de Acuerdos del Concejo de Medellín
  *
