@@ -394,6 +394,16 @@ function obtenerUltimaEjecucion(tipo = null) {
 }
 
 /**
+ * Limpia duplicados de las hojas de acuerdos.
+ * Ejecutar UNA sola vez desde el editor de Apps Script.
+ */
+function limpiarDuplicadosAcuerdos() {
+  SheetsUtils.limpiarDuplicados('acuerdos_maestro');
+  SheetsUtils.limpiarDuplicados('acuerdos_detalle');
+  SheetsUtils.limpiarDuplicados('acuerdos_concejales');
+}
+
+/**
  * Verifica acceso a Google Sheets
  * @returns {boolean} True si hay acceso
  */

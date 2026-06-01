@@ -103,13 +103,26 @@ const SheetsUtils = {
       const buildKeyRow = (row) => claveIdxs.map(i => normalizar(row[i])).join('|');
       const buildKeyDato = (dato) => claveCampos.map(c => normalizar(dato[c])).join('|');
 
-      // 3) Indice clave -> rowIndex (en filas[])
+      // 3) Indice clave → rowIndex, deduplicando filas existentes en el proceso.
+      //    Si la hoja ya tenía duplicados los fusiona (último valor no vacío gana).
       const indice = new Map();
       const claveVacia = claveCampos.map(() => '').join('|');
+      const filasDedupe = [];
       for (let i = 0; i < filas.length; i++) {
         const k = buildKeyRow(filas[i]);
-        if (k && k !== claveVacia) indice.set(k, i);
+        if (!k || k === claveVacia) continue;
+        if (indice.has(k)) {
+          const idx = indice.get(k);
+          for (let c = 0; c < filas[i].length; c++) {
+            const v = filas[i][c];
+            if (v !== '' && v !== null && v !== undefined) filasDedupe[idx][c] = v;
+          }
+        } else {
+          indice.set(k, filasDedupe.length);
+          filasDedupe.push(filas[i].slice());
+        }
       }
+      filas = filasDedupe;
 
       // 4) Aplicar upsert en memoria
       const stats = { nuevos: 0, actualizados: 0, errores: 0 };
@@ -136,6 +149,11 @@ const SheetsUtils = {
       // 5) Reescribir el body en una sola operación
       if (filas.length > 0) {
         sheet.getRange(2, 1, filas.length, headers.length).setValues(filas);
+      }
+      // Eliminar filas sobrantes si la hoja quedó más corta (ej. tras deduplicación)
+      const ultimaFila = sheet.getLastRow();
+      if (ultimaFila > filas.length + 1) {
+        sheet.deleteRows(filas.length + 2, ultimaFila - filas.length - 1);
       }
 
       return stats;
@@ -244,6 +262,19 @@ const SheetsUtils = {
       const valor = filtros[key];
       return row[key] === valor;
     });
+  },
+
+  /**
+   * Elimina filas duplicadas de una hoja usando la clave definida en SHEETS_CONFIG.
+   * Llama guardar() con un array vacío para forzar solo la deduplicación.
+   */
+  limpiarDuplicados(sheetName) {
+    const sheet = SpreadsheetApp.openById(GOOGLE_IDS.spreadsheetId).getSheetByName(sheetName);
+    if (!sheet) { console.log(`⚠️ Hoja "${sheetName}" no encontrada`); return; }
+    const antes = sheet.getLastRow() - 1;
+    this.guardar(sheetName, []); // sin datos nuevos → solo deduplica + trunca
+    const despues = sheet.getLastRow() - 1;
+    console.log(`🧹 ${sheetName}: ${antes} → ${despues} filas (eliminados ${antes - despues} duplicados)`);
   },
 
   limpiarLogsAntiguos(sheet) {
