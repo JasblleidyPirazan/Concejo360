@@ -45,14 +45,14 @@ const SHEETS_CONFIG = {
     nombre: 'acuerdos_maestro',
     campos: ['no_acuerdo', 'no_proyecto_acuerdo', 'titulo', 'estado'],
     tipos: ['string', 'string', 'string', 'string'],
-    // no_acuerdo incluye año (ej "58-2026") asi que es unico
-    claveUnica: ['no_acuerdo']
+    // Clave compuesta: cubre filas donde no_acuerdo está vacío (se agrupa por titulo)
+    claveUnica: ['no_acuerdo', 'titulo']
   },
   acuerdos_detalle: {
     nombre: 'acuerdos_detalle',
     campos: ['no_acuerdo', 'titulo', 'fecha_sancion', 'ano_sancion', 'link_astrea', 'comision'],
     tipos: ['string', 'string', 'date', 'string', 'string', 'string'],
-    claveUnica: ['no_acuerdo']
+    claveUnica: ['no_acuerdo', 'titulo']
   },
   acuerdos_concejales: {
     nombre: 'acuerdos_concejales',

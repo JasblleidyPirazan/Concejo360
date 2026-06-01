@@ -265,16 +265,57 @@ const SheetsUtils = {
   },
 
   /**
-   * Elimina filas duplicadas de una hoja usando la clave definida en SHEETS_CONFIG.
-   * Llama guardar() con un array vacío para forzar solo la deduplicación.
+   * Elimina filas duplicadas de una hoja. Usa la claveUnica de SHEETS_CONFIG;
+   * si la clave es compuesta por id + descriptor, maneja correctamente filas
+   * donde el id está vacío (se agrupa por descriptor en ese caso).
    */
   limpiarDuplicados(sheetName) {
     const sheet = SpreadsheetApp.openById(GOOGLE_IDS.spreadsheetId).getSheetByName(sheetName);
-    if (!sheet) { console.log(`⚠️ Hoja "${sheetName}" no encontrada`); return; }
-    const antes = sheet.getLastRow() - 1;
-    this.guardar(sheetName, []); // sin datos nuevos → solo deduplica + trunca
+    if (!sheet || sheet.getLastRow() < 2) {
+      console.log(`⚠️ Hoja "${sheetName}" vacía o no encontrada`);
+      return;
+    }
+
+    const config = SHEETS_CONFIG[sheetName.replace('_maestro', '')];
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    const valores = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    const headers = valores[0];
+    const filas = valores.slice(1);
+
+    const claveCampos = (config && config.claveUnica) ? config.claveUnica
+      : (headers.indexOf('numero') !== -1 ? ['numero'] : ['consecutivo']);
+    const claveIdxs = claveCampos.map(c => headers.indexOf(c));
+    const normalizar = v => (v == null ? '' : String(v).trim());
+    const buildKey = row => claveIdxs.map(i => normalizar(row[i])).join('|');
+    const claveVacia = claveCampos.map(() => '').join('|');
+
+    const seen = new Map();
+    const filasDedupe = [];
+    for (const fila of filas) {
+      const k = buildKey(fila);
+      if (!k || k === claveVacia) continue;
+      if (seen.has(k)) {
+        const idx = seen.get(k);
+        for (let c = 0; c < fila.length; c++) {
+          const v = fila[c];
+          if (v !== '' && v !== null && v !== undefined) filasDedupe[idx][c] = v;
+        }
+      } else {
+        seen.set(k, filasDedupe.length);
+        filasDedupe.push(fila.slice());
+      }
+    }
+
+    if (filasDedupe.length > 0) {
+      sheet.getRange(2, 1, filasDedupe.length, headers.length).setValues(filasDedupe);
+    }
+    if (lastRow > filasDedupe.length + 1) {
+      sheet.deleteRows(filasDedupe.length + 2, lastRow - filasDedupe.length - 1);
+    }
+
     const despues = sheet.getLastRow() - 1;
-    console.log(`🧹 ${sheetName}: ${antes} → ${despues} filas (eliminados ${antes - despues} duplicados)`);
+    console.log(`🧹 ${sheetName}: ${filas.length} → ${despues} filas (${filas.length - despues} duplicados eliminados)`);
   },
 
   limpiarLogsAntiguos(sheet) {
