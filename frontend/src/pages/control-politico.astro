@@ -1,0 +1,19 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PaginaFutura from '../components/PaginaFutura.astro';
+---
+
+<Layout title="Control político — Concejo 360">
+  <PaginaFutura
+    etiqueta="Control político"
+    titulo="Control político y comisiones"
+    pregunta="¿Quién vigila a la administración y sobre qué temas?"
+    descripcion="Citaciones, invitaciones y comisiones accidentales bajo la lupa."
+    planeado={[
+      'Cronología de citaciones coloreada por bancada citante.',
+      'Heatmap bancada × tema: qué bancada vigila qué.',
+      'Top 10 secretarías más citadas.',
+      'Comisiones accidentales activas vs. archivadas por año: ¿herramienta real o ruido protocolario?',
+    ]}
+  />
+</Layout>

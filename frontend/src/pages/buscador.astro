@@ -1,0 +1,19 @@
+---
+import Layout from '../layouts/Layout.astro';
+import BuscadorTransversal from '../components/BuscadorTransversal.jsx';
+---
+
+<Layout title="Buscador — Concejo 360" description="Busca cualquier tema en proyectos, acuerdos, citaciones, comisiones y sesiones del Concejo de Medellín.">
+  <section class="mb-6">
+    <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">Buscador transversal</p>
+    <h1 class="mt-2 text-3xl md:text-4xl font-bold text-slate-900">
+      ¿Qué se ha hecho sobre…?
+    </h1>
+    <p class="mt-3 max-w-2xl text-slate-600">
+      Búsqueda libre sobre todos los datos del portal: proyectos de acuerdo, acuerdos, citaciones a
+      control político, invitaciones, comisiones accidentales y sesiones.
+    </p>
+  </section>
+
+  <BuscadorTransversal client:load />
+</Layout>

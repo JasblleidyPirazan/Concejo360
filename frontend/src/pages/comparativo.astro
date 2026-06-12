@@ -1,0 +1,19 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PaginaFutura from '../components/PaginaFutura.astro';
+---
+
+<Layout title="Comparativo — Concejo 360">
+  <PaginaFutura
+    etiqueta="Comparativo"
+    titulo="Comparar concejales"
+    pregunta="¿Este concejal está por encima o por debajo del promedio?"
+    descripcion="Comparaciones con contexto: un concejal de oposición con pocos acuerdos sancionados puede estar haciendo control político riguroso. Comparar sin ese contexto es injusto, por eso esta página llega cuando tengamos bancadas y asistencia."
+    planeado={[
+      'Tabla rankeable con columnas configurables (sin "puntaje global" — sería tendencioso).',
+      'Gráfico radar comparando hasta 3 concejales en 6 ejes normalizados.',
+      'Scatterplot "Producción vs. Control" con cuadrantes por perfil.',
+      'Advertencia metodológica permanente sobre la correlación de fuerzas.',
+    ]}
+  />
+</Layout>

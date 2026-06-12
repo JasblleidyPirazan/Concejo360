@@ -1,0 +1,37 @@
+---
+const TABS = [
+  { href: '/', icono: '🏛️', label: 'Concejo' },
+  { href: '/concejales', icono: '👤', label: 'Concejal' },
+  { href: '/produccion', icono: '📜', label: 'Producción' },
+  { href: '/control-politico', icono: '🎯', label: 'Control político' },
+  { href: '/comparativo', icono: '⚖️', label: 'Comparativo' },
+  { href: '/buscador', icono: '🔍', label: 'Buscador' },
+];
+
+const pathname = Astro.url.pathname.replace(/\/$/, '') || '/';
+const esActivo = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+---
+
+<nav class="bg-white border-b border-slate-200" aria-label="Secciones del portal">
+  <div class="max-w-7xl mx-auto px-4 overflow-x-auto">
+    <ul class="flex gap-1 text-sm whitespace-nowrap -mb-px">
+      {TABS.map((tab) => (
+        <li>
+          <a
+            href={tab.href}
+            aria-current={esActivo(tab.href) ? 'page' : undefined}
+            class:list={[
+              'flex items-center gap-1.5 px-3 py-3 border-b-2 transition-colors',
+              esActivo(tab.href)
+                ? 'border-brand-600 text-brand-700 font-semibold'
+                : 'border-transparent text-slate-600 hover:text-brand-700 hover:border-brand-200',
+            ]}
+          >
+            <span aria-hidden="true">{tab.icono}</span>
+            <span>{tab.label}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</nav>

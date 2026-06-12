@@ -1,0 +1,40 @@
+---
+interface Props {
+  etiqueta: string;
+  titulo: string;
+  pregunta: string;
+  descripcion: string;
+  planeado: string[];
+}
+
+const { etiqueta, titulo, pregunta, descripcion, planeado } = Astro.props;
+---
+
+<section class="mb-8">
+  <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">{etiqueta}</p>
+  <div class="mt-2 flex items-center gap-3 flex-wrap">
+    <h1 class="text-3xl md:text-4xl font-bold text-slate-900">{titulo}</h1>
+    <span class="inline-flex items-center rounded-full bg-accent-400/30 px-3 py-1 text-xs font-semibold text-amber-900 ring-1 ring-accent-600/30">
+      En construcción
+    </span>
+  </div>
+  <p class="mt-3 max-w-2xl text-lg text-slate-700 font-medium">{pregunta}</p>
+  <p class="mt-2 max-w-2xl text-slate-600">{descripcion}</p>
+</section>
+
+<div class="rounded-xl border border-dashed border-slate-300 bg-white/60 p-6">
+  <h2 class="text-sm font-semibold text-slate-900 mb-3">Lo que vas a encontrar acá</h2>
+  <ul class="space-y-2">
+    {planeado.map((item) => (
+      <li class="flex items-start gap-2 text-sm text-slate-600">
+        <span class="text-brand-500 mt-0.5" aria-hidden="true">◆</span>
+        <span>{item}</span>
+      </li>
+    ))}
+  </ul>
+  <p class="mt-5 text-xs text-slate-500">
+    Mientras tanto podés explorar el <a href="/" class="text-brand-700 hover:underline">panorama del Concejo</a>,
+    el <a href="/concejales" class="text-brand-700 hover:underline">perfil de cada concejal</a> o el
+    <a href="/buscador" class="text-brand-700 hover:underline">buscador transversal</a>.
+  </p>
+</div>
