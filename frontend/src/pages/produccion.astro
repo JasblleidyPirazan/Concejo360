@@ -1,19 +1,22 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import PaginaFutura from '../components/PaginaFutura.astro';
+import ProduccionLegislativa from '../components/ProduccionLegislativa.jsx';
 ---
 
-<Layout title="Producción legislativa — Concejo 360">
-  <PaginaFutura
-    etiqueta="Producción legislativa"
-    titulo="Proyectos de acuerdo"
-    pregunta="¿Qué proyectos hay vivos, quiénes los empujan y dónde están atascados?"
-    descripcion="Seguimiento legislativo pensado para periodistas y veedurías."
-    planeado={[
-      'Tabla principal con búsqueda y filtros por estado, comisión, bancada, proponente y fechas.',
-      'Línea de tiempo por proyecto: detecta proyectos con meses sin movimiento.',
-      'Diagrama Sankey bancada proponente → comisión → estado final: qué bancadas convierten vs. solo radican.',
-      'Tasa de conversión por bancada y días promedio antes de primer debate.',
-    ]}
-  />
+<Layout
+  title="Producción legislativa — Concejo 360"
+  description="Proyectos de acuerdo radicados ante el Concejo de Medellín: estado, comisión, proponentes y días de trámite."
+>
+  <section class="mb-8">
+    <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">Producción legislativa</p>
+    <h1 class="mt-2 text-3xl md:text-4xl font-bold text-slate-900">
+      Proyectos de acuerdo
+    </h1>
+    <p class="mt-3 max-w-2xl text-slate-600">
+      ¿Qué proyectos hay vivos, quiénes los empujan y dónde están atascados? Seguimiento legislativo
+      con filtros por año, comisión, etapa y proponente. Pensado para periodistas y veedurías.
+    </p>
+  </section>
+
+  <ProduccionLegislativa client:load />
 </Layout>
