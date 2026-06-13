@@ -19,7 +19,8 @@
 backend/apps-script/
 ├── main.js                         # doGet/doPost, switch de actions
 ├── api/
-│   └── dashboardConcejales.js      # endpoint resumen-concejales (agregaciones)
+│   ├── dashboardConcejales.js      # endpoint resumen-concejales (agregaciones)
+│   └── panoramaConcejo.js          # endpoint panorama-concejo (Vista Concejo)
 ├── scrapers/
 │   ├── sesiones.js, proyectos.js, acuerdos.js
 │   └── comisiones.js, citaciones.js, invitaciones.js
@@ -30,17 +31,23 @@ backend/apps-script/
 
 frontend/
 ├── src/
-│   ├── layouts/Layout.astro        # header + nav + footer (max-w-7xl)
+│   ├── layouts/Layout.astro        # header + NavTabs + footer (max-w-7xl)
 │   ├── pages/
-│   │   ├── index.astro             # landing → GlobalDashboard
-│   │   └── concejales.astro        # individual → DashboardConcejales
+│   │   ├── index.astro             # landing → VistaConcejo (panorama-concejo)
+│   │   ├── concejales.astro        # individual → DashboardConcejales
+│   │   ├── buscador.astro          # búsqueda transversal → BuscadorTransversal
+│   │   └── produccion / control-politico / comparativo .astro  # placeholders (PaginaFutura)
 │   ├── components/
-│   │   ├── GlobalDashboard.jsx     # dashboard del periodo (KPIs, rankings)
+│   │   ├── NavTabs.astro           # navegación persistente de 6 tabs
+│   │   ├── VistaConcejo.jsx        # landing: KPIs+deltas, sesiones/mes, embudo, heatmap, temas, rankings
+│   │   ├── BuscadorTransversal.jsx # búsqueda libre sobre las 6 fuentes, export CSV
 │   │   ├── DashboardConcejales.jsx # detalle por concejal
+│   │   ├── PaginaFutura.astro      # plantilla "En construcción" para tabs pendientes
 │   │   ├── MonthlyChart.jsx, SesionesStats.jsx
 │   ├── lib/
 │   │   ├── api.ts                  # cliente, tipos ApiOk/ApiError
-│   │   └── stats.ts                # helpers (porMes, etc.)
+│   │   ├── stats.ts                # helpers (porMes, formatFecha, etc.)
+│   │   └── csv.ts                  # descargarCsv (botones "⬇ CSV")
 │   └── styles/global.css
 ├── netlify/functions/api.mjs       # proxy con allowlist
 └── tailwind.config.cjs             # paleta brand (morado) + accent (amarillo)
@@ -129,18 +136,20 @@ estado: {                 // semánticos (estados de actividades)
 
 Layout: `max-w-7xl` (1280px) en Layout.astro. Para ampliar a futuro, cambiar las 3 ocurrencias en ese archivo (header, main, footer).
 
-## Estado del MVP (mayo 2026)
+## Estado del MVP (junio 2026)
 
 ✅ Funciona:
-- Dashboard global con KPIs por periodo (proyectos, acuerdos, comisiones, citaciones, invitaciones).
+- Navegación persistente de 6 tabs (Concejo, Concejal, Producción, Control político, Comparativo, Buscador).
+- **Vista Concejo** (landing, Página 1 del roadmap): KPIs con deltas vs. mismo corte del periodo anterior (o año−1), sesiones por mes (ordinarias/extraordinarias), embudo de proyectos en 5 etapas, heatmap comisión × mes, top temas, insight automático. Filtros: periodo + año.
 - Rankings top 10 ponentes (proyectos, acuerdos).
-- Distribución de proyectos por estado.
 - Página individual `/concejales?nombre=X` con KPIs y estados.
+- **Buscador transversal** (`/buscador?q=X`, Página 6 del roadmap): búsqueda libre sobre proyectos, acuerdos, citaciones, invitaciones, comisiones y sesiones; filtros por fuente, resaltado y descarga CSV.
+- Botones "⬇ CSV" en cada gráfico de la Vista Concejo (open data).
 - Scraping automático de SIMI.
-- Filtros: solo periodo (en frontend).
 
 ❌ Pendiente (ver `docs/ROADMAP.md`):
-- 6 páginas conceptuales completas (navegación de tabs, embudo, sankey, scatterplot, heatmap, búsqueda transversal, compartir perfil).
+- Páginas Producción, Control político y Comparativo (hoy placeholders con `PaginaFutura`).
+- Perfil del concejal expandido (foto, bancada, tabla de proyectos, agenda temática, compartir).
 - Datos no presentes: bancada, oposición/gobierno, foto, contactos, comisión donde el concejal participa formalmente, asistencia (depende del despacho), clasificación temática (NLP).
 - Lista canónica de 21 concejales por periodo (hoy se infiere de los datos).
 

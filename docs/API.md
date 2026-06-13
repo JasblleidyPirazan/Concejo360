@@ -28,7 +28,7 @@ Allowlist actual (`api.mjs`):
 
 ```js
 const ALLOWED_ACTIONS = new Set([
-  'data', 'status', 'health', 'resumen-concejales'
+  'data', 'status', 'health', 'resumen-concejales', 'panorama-concejo'
 ]);
 ```
 
@@ -90,6 +90,34 @@ Response:
 ⚠️ **Shape crítico**: el frontend (`api.ts` `ApiOk<T>`) espera el payload bajo `data`. Si se devuelve flat al root, `res.data` es `undefined` y el dashboard muestra "Sin datos disponibles".
 
 Implementación: `backend/apps-script/api/dashboardConcejales.js` (`DashboardConcejales.obtener`).
+
+### `?action=panorama-concejo&periodo=<label>&anio=<yyyy>`
+
+Panorama institucional (Hoja 1 / Vista Concejo, landing del portal). Ambos parámetros opcionales:
+`periodo` default = vigente; sin `anio` el delta compara contra el mismo corte del periodo anterior,
+con `anio` compara contra `anio - 1`.
+
+Response (bajo `data`):
+
+```json
+{
+  "periodo": "2024-2027",
+  "anio": null,
+  "periodo_anterior": "2020-2023",
+  "corte_dias": 893,
+  "kpis": { "sesiones": 0, "proyectos_radicados": 0, "acuerdos_sancionados": 0, "tasa_conversion": 0, "citaciones": 0, "comisiones_accidentales": 0 },
+  "kpis_anterior": { },
+  "deltas": { "sesiones": 6.2, "...": "% de cambio (sin tasa_conversion)" },
+  "sesiones_por_mes": [{ "mes": "2026-05", "ordinarias": 8, "extraordinarias": 2, "total": 10 }],
+  "embudo": [{ "etapa": "Radicado", "total": 96 }],
+  "heatmap_comision_mes": [{ "comision": "...", "mes": "2026-05", "total": 4 }],
+  "top_temas": [{ "tema": "seguridad", "count": 87 }],
+  "insight": "Durante 2026 se realizaron...",
+  "generado_en": "..."
+}
+```
+
+Implementación: `backend/apps-script/api/panoramaConcejo.js`. Consumido por `frontend/src/components/VistaConcejo.jsx`.
 
 ### `?action=data&tipo=<tipo>&page=<n>&limit=<n>`
 
@@ -182,10 +210,12 @@ Para forzar refresh inmediato después de un cambio: redeploy del frontend (limp
 `frontend/src/lib/api.ts` exporta:
 
 ```ts
-api.sesiones(limit?)         // GET data?tipo=sesiones
-api.status()                 // GET status
-api.health()                 // GET health
-api.resumenConcejales()      // GET resumen-concejales
+api.sesiones(limit?)              // GET data?tipo=sesiones
+api.datos(tipo, limit?)           // GET data?tipo=X (cualquier tipo de la allowlist)
+api.status()                      // GET status
+api.health()                      // GET health
+api.resumenConcejales()           // GET resumen-concejales
+api.panoramaConcejo(periodo?, anio?)  // GET panorama-concejo
 ```
 
 Tipos:

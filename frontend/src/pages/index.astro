@@ -1,19 +1,20 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import GlobalDashboard from '../components/GlobalDashboard.jsx';
+import VistaConcejo from '../components/VistaConcejo.jsx';
 ---
 
 <Layout>
   <section class="mb-8">
-    <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">Transparencia</p>
+    <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">Vista Concejo</p>
     <h1 class="mt-2 text-3xl md:text-4xl font-bold text-slate-900">
-      Concejo 360
+      ¿Qué hace el Concejo de Medellín?
     </h1>
     <p class="mt-2 max-w-2xl text-slate-600">
-      Visor de datos abiertos extraídos de SIMI. Indicadores de actividad del Concejo de Medellín
-      por periodo: proyectos, acuerdos, comisiones, citaciones e invitaciones.
+      Panorama institucional con datos abiertos extraídos de SIMI: sesiones, proyectos de acuerdo,
+      acuerdos sancionados, control político y comisiones. Compará el periodo actual contra el anterior
+      antes de juzgar a un concejal individual.
     </p>
   </section>
 
-  <GlobalDashboard client:load />
+  <VistaConcejo client:load />
 </Layout>

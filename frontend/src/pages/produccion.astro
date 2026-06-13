@@ -1,0 +1,19 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PaginaFutura from '../components/PaginaFutura.astro';
+---
+
+<Layout title="Producción legislativa — Concejo 360">
+  <PaginaFutura
+    etiqueta="Producción legislativa"
+    titulo="Proyectos de acuerdo"
+    pregunta="¿Qué proyectos hay vivos, quiénes los empujan y dónde están atascados?"
+    descripcion="Seguimiento legislativo pensado para periodistas y veedurías."
+    planeado={[
+      'Tabla principal con búsqueda y filtros por estado, comisión, bancada, proponente y fechas.',
+      'Línea de tiempo por proyecto: detecta proyectos con meses sin movimiento.',
+      'Diagrama Sankey bancada proponente → comisión → estado final: qué bancadas convierten vs. solo radican.',
+      'Tasa de conversión por bancada y días promedio antes de primer debate.',
+    ]}
+  />
+</Layout>

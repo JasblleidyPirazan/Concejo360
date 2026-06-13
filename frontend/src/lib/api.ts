@@ -17,6 +17,7 @@ export interface ApiOk<T> {
   total?: number;
   page?: number;
   pages?: number;
+  pagination?: { page: number; limit: number; total: number; pages: number };
 }
 
 export interface ApiError {
@@ -82,9 +83,47 @@ export interface ResumenConcejales {
   generado_en: string;
 }
 
+export interface PanoramaKpis {
+  sesiones: number;
+  proyectos_radicados: number;
+  acuerdos_sancionados: number;
+  tasa_conversion: number;
+  citaciones: number;
+  comisiones_accidentales: number;
+}
+
+export interface PanoramaConcejo {
+  periodo: string;
+  anio: number | null;
+  periodo_anterior: string | null;
+  corte_dias: number;
+  kpis: PanoramaKpis;
+  kpis_anterior: PanoramaKpis | null;
+  deltas: Record<keyof Omit<PanoramaKpis, 'tasa_conversion'>, number> | null;
+  sesiones_por_mes: Array<{ mes: string; ordinarias: number; extraordinarias: number; total: number }>;
+  embudo: Array<{ etapa: string; total: number }>;
+  heatmap_comision_mes: Array<{ comision: string; mes: string; total: number }>;
+  top_temas: Array<{ tema: string; count: number }>;
+  insight: string;
+  generado_en: string;
+}
+
+export type TipoDato =
+  | 'sesiones'
+  | 'proyectos'
+  | 'acuerdos'
+  | 'comisiones'
+  | 'invitaciones'
+  | 'citaciones';
+
+export type FilaDato = Record<string, string | number | boolean | null>;
+
 export const api = {
   sesiones: (limit = 500) => call<Sesion[]>({ action: 'data', tipo: 'sesiones', limit }),
+  datos: (tipo: TipoDato, limit = 10000) => call<FilaDato[]>({ action: 'data', tipo, limit }),
   status: () => call<unknown>({ action: 'status' }),
   health: () => call<unknown>({ action: 'health' }),
   resumenConcejales: () => call<ResumenConcejales>({ action: 'resumen-concejales' }),
+  panoramaConcejo: (periodo?: string, anio?: number) =>
+    call<PanoramaConcejo>({ action: 'panorama-concejo', periodo, anio }),
 };
