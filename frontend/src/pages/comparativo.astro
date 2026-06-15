@@ -1,19 +1,22 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import PaginaFutura from '../components/PaginaFutura.astro';
+import ComparativoConcejales from '../components/ComparativoConcejales.jsx';
 ---
 
-<Layout title="Comparativo — Concejo 360">
-  <PaginaFutura
-    etiqueta="Comparativo"
-    titulo="Comparar concejales"
-    pregunta="¿Este concejal está por encima o por debajo del promedio?"
-    descripcion="Comparaciones con contexto: un concejal de oposición con pocos acuerdos sancionados puede estar haciendo control político riguroso. Comparar sin ese contexto es injusto, por eso esta página llega cuando tengamos bancadas y asistencia."
-    planeado={[
-      'Tabla rankeable con columnas configurables (sin "puntaje global" — sería tendencioso).',
-      'Gráfico radar comparando hasta 3 concejales en 6 ejes normalizados.',
-      'Scatterplot "Producción vs. Control" con cuadrantes por perfil.',
-      'Advertencia metodológica permanente sobre la correlación de fuerzas.',
-    ]}
-  />
+<Layout
+  title="Comparativo — Concejo 360"
+  description="Comparar la producción legislativa de los concejales de Medellín por periodo: proyectos, acuerdos, efectividad y perfil."
+>
+  <section class="mb-8">
+    <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">Comparativo</p>
+    <h1 class="mt-2 text-3xl md:text-4xl font-bold text-slate-900">
+      Comparar concejales
+    </h1>
+    <p class="mt-3 max-w-2xl text-slate-600">
+      ¿Este concejal está por encima o por debajo del promedio? Producción legislativa comparada,
+      siempre con la advertencia de que un perfil de control político no se mide solo con acuerdos.
+    </p>
+  </section>
+
+  <ComparativoConcejales client:load />
 </Layout>
