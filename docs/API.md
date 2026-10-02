@@ -119,6 +119,12 @@ Response (bajo `data`):
 
 Implementación: `backend/apps-script/api/panoramaConcejo.js`. Consumido por `frontend/src/components/VistaConcejo.jsx`.
 
+### `?action=rendicion-concejal&nombre=<nombre>&bancada=<bancada>&periodo=<periodo|todos>`
+
+Actividad de un concejal: `ponencias`, `proyectos_proponente`, `acuerdos`, `citaciones`, `invitaciones`, `comisiones_accidentales`, más `kpis` con los conteos y `diagnostico` (variantes de nombre y bancada encontradas). `nombre` es obligatorio (el proxy responde 400 `BAD_NOMBRE` si falta); se compara por palabras, sin tildes ni mayúsculas. Citaciones e invitaciones se atribuyen por bancada (`atribucion: 'bancada'`) porque SIMI no registra el concejal. `periodo` por defecto es el actual.
+
+Implementación: `backend/apps-script/api/rendicionConcejal.js`. Consumido por `frontend/src/components/RendicionCuentas.jsx` (página `/rendicion`).
+
 ### `?action=data&tipo=<tipo>&page=<n>&limit=<n>`
 
 Paginación de cualquier hoja maestro. `tipo` debe estar en `ALLOWED_TIPOS`:
