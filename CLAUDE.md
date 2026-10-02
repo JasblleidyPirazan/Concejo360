@@ -20,7 +20,8 @@ backend/apps-script/
 ├── main.js                         # doGet/doPost, switch de actions
 ├── api/
 │   ├── dashboardConcejales.js      # endpoint resumen-concejales (agregaciones)
-│   └── panoramaConcejo.js          # endpoint panorama-concejo (Vista Concejo)
+│   ├── panoramaConcejo.js          # endpoint panorama-concejo (Vista Concejo)
+│   └── rendicionConcejal.js        # endpoint rendicion-concejal (página incrustable /rendicion)
 ├── scrapers/
 │   ├── sesiones.js, proyectos.js, acuerdos.js
 │   └── comisiones.js, citaciones.js, invitaciones.js
