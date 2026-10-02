@@ -48,7 +48,7 @@ const ScraperComisiones = {
         bufferMaestro: [],
         bufferDetalle: [],
         bufferIntegrantes: [],
-        existentes: this.cargarEstadosExistentes(),
+        existentes: this.forzandoDetalle() ? new Map() : this.cargarEstadosExistentes(),
         stats: {
           maestro: { nuevos: 0, actualizados: 0, errores: 0 },
           detalle: { nuevos: 0, actualizados: 0, errores: 0 },
@@ -231,6 +231,11 @@ const ScraperComisiones = {
     console.log(`🏁 Extracción: ${pagina - 1} página(s), ${comisionesProcesadas} comisiones, ${elapsed}s — salida: ${salida}`);
 
     const hitBudget = salida.indexOf('time budget') === 0 || salida.indexOf('maxPaginas') === 0;
+    const recorridoCompleto = /^(fin natural|página corta|página vacía)/.test(salida);
+    if (recorridoCompleto && this.forzandoDetalle()) {
+      console.log('🎉 Reproceso forzado de detalle de comisiones completado');
+      this.limpiarForzarDetalle();
+    }
     if (hitBudget) {
       this.guardarResumeOffset(first);
     } else if (resumeFrom > 0) {
@@ -712,5 +717,41 @@ const ScraperComisiones = {
     try {
       PropertiesService.getScriptProperties().deleteProperty(this.RESUME_KEY);
     } catch (e) { /* */ }
+  },
+
+  // === Reproceso forzado del detalle (PropertiesService) ===
+  // Persiste entre corridas porque el recorrido completo no cabe en una sola
+  // ejecución de 6 min; mientras esté activo no se salta ninguna comisión.
+
+  FORZAR_KEY: 'comisiones_forzarDetalle',
+
+  forzandoDetalle() {
+    try {
+      return PropertiesService.getScriptProperties().getProperty(this.FORZAR_KEY) === '1';
+    } catch (e) {
+      return false;
+    }
+  },
+
+  limpiarForzarDetalle() {
+    try {
+      PropertiesService.getScriptProperties().deleteProperty(this.FORZAR_KEY);
+    } catch (e) { /* */ }
   }
 };
+
+/**
+ * Vuelve a descargar proponentes e integrantes de TODAS las comisiones.
+ * Necesario una vez tras corregir la clave de comisiones_detalle e
+ * comisiones_detalle_integrantes: antes se guardaba un solo concejal por
+ * comisión. Ejecutar desde el editor; si se corta por tiempo, volver a
+ * ejecutarla (continúa donde quedó) hasta ver "Reproceso forzado ... completado".
+ */
+function reprocesarDetalleComisiones() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(ScraperComisiones.FORZAR_KEY) !== '1') {
+    props.setProperty(ScraperComisiones.FORZAR_KEY, '1');
+    ScraperComisiones.limpiarResumeOffset();
+  }
+  return ejecutarScraping('comisiones');
+}
