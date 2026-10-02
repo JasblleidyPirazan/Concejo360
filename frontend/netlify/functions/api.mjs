@@ -1,4 +1,4 @@
-const ALLOWED_ACTIONS = new Set(['data', 'status', 'health', 'resumen-concejales', 'panorama-concejo']);
+const ALLOWED_ACTIONS = new Set(['data', 'status', 'health', 'resumen-concejales', 'panorama-concejo', 'rendicion-concejal']);
 const ALLOWED_TIPOS = new Set([
   'sesiones',
   'proyectos',
@@ -42,6 +42,10 @@ export async function handler(event) {
     if (!params.tipo || !ALLOWED_TIPOS.has(params.tipo)) {
       return json(400, errorBody('Parámetro "tipo" inválido o ausente', 'BAD_TIPO'));
     }
+  }
+
+  if (action === 'rendicion-concejal' && !params.nombre) {
+    return json(400, errorBody('Parámetro "nombre" ausente', 'BAD_NOMBRE'));
   }
 
   const search = new URLSearchParams();

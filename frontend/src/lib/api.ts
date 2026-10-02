@@ -108,6 +108,34 @@ export interface PanoramaConcejo {
   generado_en: string;
 }
 
+export interface ItemProyecto { numero: string; titulo: string; estado: string; fecha: string | null; comision: string }
+export interface ItemAcuerdo { numero: string; titulo: string; fecha: string | null; link: string; roles: string[] }
+export interface ItemProposicion { consecutivo: string; titulo: string; descripcion: string; estado: string; fecha: string | null; atribucion: 'bancada' | 'concejal' }
+export interface ItemComision { consecutivo: string; titulo: string; descripcion: string; estado: string; coordinador: string; fecha: string | null; roles: string[] }
+
+export interface RendicionConcejal {
+  nombre_consultado: string;
+  bancada_consultada: string | null;
+  periodo: string;
+  kpis: {
+    ponencias: number;
+    proyectos_proponente: number;
+    acuerdos: number;
+    citaciones: number;
+    invitaciones: number;
+    comisiones_accidentales: number;
+    comisiones_coordinadas: number;
+  };
+  ponencias: ItemProyecto[];
+  proyectos_proponente: ItemProyecto[];
+  acuerdos: ItemAcuerdo[];
+  citaciones: ItemProposicion[];
+  invitaciones: ItemProposicion[];
+  comisiones_accidentales: ItemComision[];
+  diagnostico: { nombres_encontrados: string[]; bancadas_encontradas: string[] };
+  generado_en: string;
+}
+
 export type TipoDato =
   | 'sesiones'
   | 'proyectos'
@@ -126,4 +154,6 @@ export const api = {
   resumenConcejales: () => call<ResumenConcejales>({ action: 'resumen-concejales' }),
   panoramaConcejo: (periodo?: string, anio?: number) =>
     call<PanoramaConcejo>({ action: 'panorama-concejo', periodo, anio }),
+  rendicionConcejal: (nombre: string, bancada?: string, periodo?: string) =>
+    call<RendicionConcejal>({ action: 'rendicion-concejal', nombre, bancada, periodo }),
 };
