@@ -66,6 +66,18 @@ const SHEETS_CONFIG = {
     tipos: ['date', 'string', 'string', 'string', 'string', 'string', 'string'],
     claveUnica: ['consecutivo']
   },
+  comisiones_detalle: {
+    nombre: 'comisiones_detalle',
+    campos: ['consecutivo', 'titulo', 'concejal_proponente', 'bancada'],
+    tipos: ['string', 'string', 'string', 'string'],
+    claveUnica: ['consecutivo', 'concejal_proponente']
+  },
+  comisiones_detalle_integrantes: {
+    nombre: 'comisiones_detalle_integrantes',
+    campos: ['consecutivo', 'titulo', 'integrantes'],
+    tipos: ['string', 'string', 'string'],
+    claveUnica: ['consecutivo', 'integrantes']
+  },
   invitaciones: {
     nombre: 'invitaciones_maestro',
     campos: ['fecha', 'acta_aprobacion', 'consecutivo', 'titulo', 'descripcion', 'estado'],
