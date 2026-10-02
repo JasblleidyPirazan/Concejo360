@@ -1,70 +1,77 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { descargarCsv } from '../lib/csv.ts';
+import { aMayusculaInicial } from '../lib/texto.ts';
+import '../styles/rendicion.css';
 
 // Valores por defecto: se pueden cambiar desde el enlace sin tocar código, ej.
-// /rendicion?nombre=...&bancada=...&titulo=...&color=c8102e&periodo=todos
+// /rendicion?nombre=...&bancada=...&titulo=...&periodo=todos
 const DEFAULTS = {
   nombre: 'JOSE LUIS MARIN MORA',
   titulo: 'José Luis Marín Mora',
   bancada: 'PACTO HISTORICO',
   periodo: '2024-2027',
-  color: '7010a6',
 };
 
 const SECCIONES = [
   {
     clave: 'ponencias',
     etiqueta: 'Ponencias',
-    explicacion: 'Proyectos de acuerdo en los que fue designado ponente: estudió el proyecto y presentó el informe para su debate.',
+    sustantivo: 'ponencias',
+    explicacion: 'Proyectos de acuerdo en los que fue ponente.',
     tipo: 'proyecto',
   },
   {
     clave: 'proyectos_proponente',
     etiqueta: 'Proyectos propuestos',
-    explicacion: 'Proyectos de acuerdo que presentó o firmó como proponente.',
+    sustantivo: 'proyectos',
+    explicacion: 'Proyectos de acuerdo que radicó como autor.',
     tipo: 'proyecto',
   },
   {
     clave: 'acuerdos',
     etiqueta: 'Acuerdos aprobados',
-    explicacion: 'Acuerdos municipales sancionados en los que figura como ponente o proponente.',
+    sustantivo: 'acuerdos',
+    explicacion: 'Proyectos de acuerdo en los que participó y que el Concejo aprobó.',
     tipo: 'acuerdo',
   },
   {
     clave: 'citaciones',
     etiqueta: 'Citaciones',
-    explicacion: 'Debates de control político en los que se cita a funcionarios de la Administración a responder ante el Concejo.',
+    sustantivo: 'citaciones',
+    explicacion: 'Debates de control político en los que citó a funcionarios de la Administración.',
     tipo: 'proposicion',
     porBancada: true,
   },
   {
     clave: 'invitaciones',
     etiqueta: 'Invitaciones',
-    explicacion: 'Sesiones a las que se invita a entidades o personas a informar sobre un tema.',
+    sustantivo: 'invitaciones',
+    explicacion: 'Sesiones a las que invitó a entidades o personas a exponer ante el Concejo.',
     tipo: 'proposicion',
     porBancada: true,
   },
   {
     clave: 'comisiones_accidentales',
     etiqueta: 'Comisiones accidentales',
-    explicacion: 'Comisiones temporales creadas para hacer seguimiento a un asunto concreto. Se indica si las propuso, las coordina o las integra.',
+    sustantivo: 'comisiones',
+    explicacion:
+      'Comisiones temporales creadas para hacer seguimiento a un asunto concreto. Se indica si las propuso, las coordina o las integra.',
     tipo: 'comision',
   },
 ];
 
-const POR_PAGINA = 15;
+const ORDEN_ROLES = ['Proponente', 'Coordinador', 'Integrante', 'Ponente'];
+const POR_PAGINA = 10;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 function leerParametros() {
   const qs = new URLSearchParams(window.location.search);
-  const color = (qs.get('color') || DEFAULTS.color).replace('#', '');
   return {
     nombre: qs.get('nombre') || DEFAULTS.nombre,
-    titulo: qs.get('titulo') || (qs.get('nombre') ? qs.get('nombre') : DEFAULTS.titulo),
+    titulo: qs.get('titulo') || qs.get('nombre') || DEFAULTS.titulo,
     bancada: qs.get('bancada') ?? DEFAULTS.bancada,
     periodo: qs.get('periodo') || DEFAULTS.periodo,
-    color: /^[0-9a-f]{6}$/i.test(color) ? `#${color}` : `#${DEFAULTS.color}`,
     diagnostico: qs.get('diagnostico') === '1',
   };
 }
@@ -76,10 +83,52 @@ function fechaCorta(iso) {
 }
 
 const normalizar = (s) =>
-  String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+const capitalizar = (s) => {
+  const t = String(s || '').trim().toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
+function prepararItem(item) {
+  return {
+    ...item,
+    titulo: aMayusculaInicial(item.titulo),
+    estado: aMayusculaInicial(item.estado),
+    comision: aMayusculaInicial(item.comision),
+    roles: (item.roles || []).map(capitalizar),
+  };
+}
+
+function prepararDatos(datos) {
+  const out = { ...datos };
+  for (const s of SECCIONES) out[s.clave] = (datos[s.clave] || []).map(prepararItem);
+  return out;
+}
 
 function textoBuscable(item) {
   return normalizar([item.numero, item.consecutivo, item.titulo, item.descripcion, item.estado, item.comision].join(' '));
+}
+
+function rolesDisponibles(items) {
+  const presentes = new Set(items.flatMap((it) => it.roles || []));
+  const ordenados = ORDEN_ROLES.filter((r) => presentes.has(r));
+  return ordenados.concat([...presentes].filter((r) => !ORDEN_ROLES.includes(r)).sort());
+}
+
+// Comisiones usan las etiquetas del sistema de diseño; el resto conserva el texto de SIMI.
+function clasificarEstado(estado, tipo) {
+  const n = normalizar(estado);
+  if (!n) return null;
+  if (tipo === 'comision') {
+    if (n.includes('archiv')) return { variante: 'archivada', texto: 'Archivada', icono: 'archivo' };
+    if (n.includes('program')) return { variante: 'programada', texto: 'Reunión programada', icono: 'calendario' };
+    return { variante: 'activa', texto: 'Activa', icono: 'check' };
+  }
+  if (/archiv|retir|negad|hundid|desist|devuelt/.test(n)) return { variante: 'archivada', texto: estado, icono: 'archivo' };
+  if (/sancion|aprob/.test(n)) return { variante: 'activa', texto: estado, icono: 'check' };
+  if (n.includes('program')) return { variante: 'programada', texto: estado, icono: 'calendario' };
+  return { variante: 'programada', texto: estado, icono: 'punto' };
 }
 
 export default function RendicionCuentas() {
@@ -88,6 +137,7 @@ export default function RendicionCuentas() {
   const [estado, setEstado] = useState({ cargando: true, error: null, datos: null });
   const [activa, setActiva] = useState('ponencias');
   const [busqueda, setBusqueda] = useState('');
+  const [rol, setRol] = useState('Todos');
   const [visibles, setVisibles] = useState(POR_PAGINA);
 
   useEffect(() => {
@@ -100,213 +150,259 @@ export default function RendicionCuentas() {
     if (!cfg || !periodo) return;
     setEstado((s) => ({ ...s, cargando: true, error: null }));
     api.rendicionConcejal(cfg.nombre, cfg.bancada || undefined, periodo).then((res) => {
-      if (res.success) setEstado({ cargando: false, error: null, datos: res.data });
+      if (res.success) setEstado({ cargando: false, error: null, datos: prepararDatos(res.data) });
       else setEstado({ cargando: false, error: res.error, datos: null });
     });
   }, [cfg, periodo]);
 
   useEffect(() => {
+    setRol('Todos');
+  }, [activa]);
+
+  useEffect(() => {
     setVisibles(POR_PAGINA);
-  }, [activa, busqueda, periodo]);
+  }, [activa, busqueda, rol, periodo]);
 
   const seccion = SECCIONES.find((s) => s.clave === activa);
   const items = estado.datos ? estado.datos[activa] || [] : [];
+  const roles = useMemo(() => rolesDisponibles(items), [items]);
   const filtrados = useMemo(() => {
     const q = normalizar(busqueda.trim());
-    return q ? items.filter((it) => textoBuscable(it).includes(q)) : items;
-  }, [items, busqueda]);
+    return items.filter(
+      (it) => (rol === 'Todos' || (it.roles || []).includes(rol)) && (!q || textoBuscable(it).includes(q)),
+    );
+  }, [items, busqueda, rol]);
 
   if (!cfg) return null;
-  const estiloAcento = { '--acento': cfg.color };
+
+  const hayFiltros = busqueda.trim() !== '' || rol !== 'Todos';
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setRol('Todos');
+  };
 
   return (
-    <div style={estiloAcento} className="mx-auto max-w-5xl px-4 py-6 md:py-8">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm text-slate-600">Rendición de cuentas en el Concejo de Medellín</p>
-          <h1 className="font-titulo mt-1 text-3xl font-extrabold leading-tight text-slate-900 md:text-4xl">
-            {cfg.titulo}
-          </h1>
-        </div>
-        <div role="group" aria-label="Periodo" className="inline-flex rounded-full border border-slate-300 p-1 text-sm">
-          {[
-            { v: DEFAULTS.periodo, t: `Periodo ${DEFAULTS.periodo}` },
-            { v: 'todos', t: 'Toda su trayectoria' },
-          ].map((op) => (
-            <button
-              key={op.v}
-              type="button"
-              onClick={() => setPeriodo(op.v)}
-              aria-pressed={periodo === op.v}
-              className={`rounded-full px-4 py-1.5 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
-                periodo === op.v ? 'text-white' : 'text-slate-700 hover:bg-slate-100'
-              }`}
-              style={periodo === op.v ? { background: 'var(--acento)' } : undefined}
-            >
-              {op.t}
-            </button>
-          ))}
+    <div className="rc">
+      <header className="rc-banda">
+        <div className="rc-contenedor rc-banda-interior">
+          <div>
+            <p className="rc-etiqueta">Rendición de cuentas · Concejo de Medellín</p>
+            <h1 className="rc-nombre">{cfg.titulo}</h1>
+          </div>
+          <div role="group" aria-label="Periodo de los datos" className="rc-periodo">
+            {[
+              { v: DEFAULTS.periodo, t: `Periodo ${DEFAULTS.periodo}` },
+              { v: 'todos', t: 'Toda su trayectoria' },
+            ].map((op) => (
+              <button key={op.v} type="button" onClick={() => setPeriodo(op.v)} aria-pressed={periodo === op.v}>
+                {op.t}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      {estado.error && (
-        <p className="mt-8 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          No se pudieron cargar los datos ({estado.error}). Recarga la página en unos minutos.
-        </p>
-      )}
-
-      <nav
-        aria-label="Tipo de actividad"
-        className="mt-8 grid grid-cols-2 border-y border-slate-200 sm:grid-cols-3 lg:grid-cols-6"
-      >
-        {SECCIONES.map((s) => {
-          const n = estado.datos ? (estado.datos[s.clave] || []).length : null;
-          const on = s.clave === activa;
-          return (
-            <button
-              key={s.clave}
-              type="button"
-              onClick={() => setActiva(s.clave)}
-              aria-pressed={on}
-              className={`relative flex flex-col items-start justify-start px-3 py-4 text-left transition-colors focus:outline-none focus-visible:bg-slate-100 ${
-                on ? 'bg-white' : 'hover:bg-slate-50'
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-3 top-0 h-1 rounded-b"
-                style={{ background: on ? 'var(--acento)' : 'transparent' }}
-              />
-              <span
-                className="font-titulo block text-4xl font-extrabold tabular-nums leading-none"
-                style={{ color: on ? 'var(--acento)' : '#1c1b22' }}
+      <div className="rc-contenedor">
+        <nav aria-label="Indicadores de gestión" className="rc-kpis">
+          {SECCIONES.map((s) => {
+            const n = estado.datos ? (estado.datos[s.clave] || []).length : null;
+            return (
+              <button
+                key={s.clave}
+                type="button"
+                className="rc-kpi"
+                onClick={() => setActiva(s.clave)}
+                aria-pressed={s.clave === activa}
               >
-                {n === null ? '–' : n}
-              </span>
-              <span className="mt-2 block text-sm leading-snug text-slate-700">{s.etiqueta}</span>
-            </button>
-          );
-        })}
-      </nav>
+                <span className="rc-kpi-cifra">{n === null ? '–' : n.toLocaleString('es-CO')}</span>
+                <span className="rc-kpi-rotulo">{s.etiqueta}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-      <section className="mt-8" aria-live="polite">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="max-w-2xl">
-            <h2 className="font-titulo text-xl font-bold text-slate-900">{seccion.etiqueta}</h2>
-            <p className="mt-1 text-sm text-slate-600">{seccion.explicacion}</p>
-            {seccion.porBancada && (
-              <p className="mt-3 border-l-4 pl-3 text-sm text-slate-700" style={{ borderColor: 'var(--acento)' }}>
-                El SIMI registra estas proposiciones por bancada y no por concejal. Aquí aparecen las presentadas por
-                la bancada {estado.datos?.diagnostico?.bancadas_encontradas?.[0] || cfg.bancada}, de la que hace parte.
+        <section className="rc-panel" aria-labelledby="titulo-seccion">
+          <div className="rc-cabecera">
+            <div>
+              <h2 id="titulo-seccion" className="rc-titulo">
+                {seccion.etiqueta}
+              </h2>
+              <div className="rc-filete" aria-hidden="true" />
+              <p className="rc-descripcion">{seccion.explicacion}</p>
+            </div>
+            <div className="rc-herramientas">
+              <div className="rc-buscador">
+                <label htmlFor="buscar" className="rc-etiqueta">
+                  Buscar
+                </label>
+                <div className="rc-buscador-campo">
+                  <Icono nombre="lupa" tamano={18} />
+                  <input
+                    id="buscar"
+                    type="search"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Tema o número, ej. CA-201"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="rc-boton"
+                disabled={!filtrados.length}
+                onClick={() =>
+                  descargarCsv(`${activa}-${normalizar(cfg.titulo).replace(/\s+/g, '-')}`, filtrados.map(aFilaCsv))
+                }
+              >
+                <Icono nombre="descarga" tamano={18} />
+                Descargar CSV
+              </button>
+            </div>
+          </div>
+
+          {seccion.porBancada && (
+            <div className="rc-nota">
+              <Icono nombre="info" tamano={20} />
+              <p>
+                El SIMI registra estas proposiciones por bancada y no por concejal. Aquí aparecen las presentadas por la
+                bancada {estado.datos?.diagnostico?.bancadas_encontradas?.[0] || cfg.bancada}, de la que hace parte.
               </p>
-            )}
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <label className="sr-only" htmlFor="buscar">Buscar en {seccion.etiqueta}</label>
-            <input
-              id="buscar"
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por tema o número"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 md:w-64"
-            />
-            <button
-              type="button"
-              disabled={!filtrados.length}
-              onClick={() => descargarCsv(`${activa}-${normalizar(cfg.titulo).replace(/\s+/g, '-')}`, filtrados.map(aFilaCsv))}
-              className="shrink-0 whitespace-nowrap rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 focus:outline-none focus-visible:ring-2"
-            >
-              Descargar CSV
-            </button>
-          </div>
-        </div>
+            </div>
+          )}
 
-        {estado.cargando ? (
-          <p className="mt-8 text-sm text-slate-500">Cargando datos del SIMI…</p>
-        ) : filtrados.length === 0 ? (
-          <p className="mt-8 text-sm text-slate-600">
-            {busqueda
-              ? `Ningún registro coincide con «${busqueda}». Prueba con otra palabra.`
-              : 'No hay registros de este tipo en el periodo seleccionado.'}
-          </p>
-        ) : (
-          <>
-            <ol className="mt-6 divide-y divide-slate-200 border-y border-slate-200">
-              {filtrados.slice(0, visibles).map((it) => (
-                <Fila key={it.numero || it.consecutivo} item={it} tipo={seccion.tipo} />
-              ))}
-            </ol>
-            <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-              <span>
-                Mostrando {Math.min(visibles, filtrados.length)} de {filtrados.length}
-              </span>
-              {visibles < filtrados.length && (
-                <button
-                  type="button"
-                  onClick={() => setVisibles((v) => v + POR_PAGINA)}
-                  className="rounded-md px-3 py-2 font-medium hover:bg-slate-100 focus:outline-none focus-visible:ring-2"
-                  style={{ color: 'var(--acento)' }}
-                >
-                  Mostrar {Math.min(POR_PAGINA, filtrados.length - visibles)} más
+          <div className="rc-filtros">
+            {roles.length > 0 ? (
+              <div role="group" aria-label="Filtrar por rol" className="rc-chips">
+                <span className="rc-etiqueta">Rol</span>
+                {['Todos', ...roles].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    className="rc-chip"
+                    onClick={() => setRol(r)}
+                    aria-pressed={rol === r}
+                  >
+                    {rol === r && <Icono nombre="check" tamano={16} />}
+                    {r}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span />
+            )}
+            <p className="rc-contador" aria-live="polite">
+              {estado.cargando
+                ? ''
+                : `Mostrando ${Math.min(visibles, filtrados.length).toLocaleString('es-CO')} de ${filtrados.length.toLocaleString('es-CO')} ${seccion.sustantivo}`}
+            </p>
+          </div>
+
+          {estado.error ? (
+            <p className="rc-error" role="alert">
+              No se pudieron cargar los datos ({estado.error}). Recarga la página en unos minutos.
+            </p>
+          ) : estado.cargando ? (
+            <div className="rc-nota">
+              <Icono nombre="info" tamano={20} />
+              <p>Cargando datos del SIMI…</p>
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="rc-vacio">
+              <p>
+                {hayFiltros
+                  ? `No hay ${seccion.sustantivo} que coincidan con tu búsqueda. Prueba con otro tema o número.`
+                  : 'No hay registros de este tipo en el periodo seleccionado.'}
+              </p>
+              {hayFiltros && (
+                <button type="button" className="rc-boton" onClick={limpiarFiltros}>
+                  Limpiar filtros
                 </button>
               )}
             </div>
-          </>
+          ) : (
+            <ul className="rc-lista">
+              {filtrados.slice(0, visibles).map((it) => (
+                <Fila key={it.numero || it.consecutivo} item={it} tipo={seccion.tipo} />
+              ))}
+            </ul>
+          )}
+
+          <div className="rc-pie">
+            <p>
+              Fuente: Concejo de Medellín, Sistema de Información Municipal (SIMI), procesado por{' '}
+              <a href="https://concejo360.netlify.app" target="_blank" rel="noopener" className="rc-enlace">
+                Concejo 360
+              </a>
+              .{estado.datos && ` Fecha de corte: ${fechaCorta(estado.datos.generado_en.slice(0, 10))}.`}
+            </p>
+            {visibles < filtrados.length && (
+              <button type="button" className="rc-mas" onClick={() => setVisibles((v) => v + POR_PAGINA)}>
+                Ver {Math.min(POR_PAGINA, filtrados.length - visibles)} más
+              </button>
+            )}
+          </div>
+        </section>
+
+        {cfg.diagnostico && estado.datos && (
+          <pre className="rc-diagnostico">{JSON.stringify(estado.datos.diagnostico, null, 2)}</pre>
         )}
-      </section>
-
-      <footer className="mt-10 text-xs text-slate-500">
-        Fuente: Sistema de Información Municipal (SIMI) del Concejo de Medellín, procesado por{' '}
-        <a href="https://concejo360.netlify.app" target="_blank" rel="noopener" className="underline">
-          Concejo 360
-        </a>
-        .{estado.datos && ` Datos actualizados el ${fechaCorta(estado.datos.generado_en.slice(0, 10))}.`}
-      </footer>
-
-      {cfg.diagnostico && estado.datos && (
-        <pre className="mt-6 overflow-x-auto rounded bg-slate-100 p-3 text-xs">
-          {JSON.stringify(estado.datos.diagnostico, null, 2)}
-        </pre>
-      )}
+      </div>
     </div>
   );
 }
 
 function Fila({ item, tipo }) {
-  const numero = item.numero || item.consecutivo;
-  const prefijo = { proyecto: 'Proyecto', acuerdo: 'Acuerdo', proposicion: 'Proposición', comision: 'Comisión' }[tipo];
+  const codigo = item.numero || item.consecutivo;
+  const est = clasificarEstado(item.estado, tipo);
+  const roles = [...(item.roles || [])];
+  if (item.atribucion === 'concejal') roles.push('Firmada por el concejal');
+
   return (
-    <li className="grid gap-1 py-4 md:grid-cols-[7.5rem_1fr] md:gap-6">
-      <time className="text-sm tabular-nums text-slate-500" dateTime={item.fecha || undefined}>
-        {fechaCorta(item.fecha)}
-      </time>
-      <div>
-        <p className="text-[15px] leading-relaxed text-slate-900">{item.titulo || 'Sin título registrado'}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-          <span>
-            {prefijo} {numero}
-          </span>
-          {item.estado && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">{item.estado}</span>}
+    <li className="rc-fila">
+      <time dateTime={item.fecha || undefined}>{fechaCorta(item.fecha)}</time>
+      <div className="rc-fila-contenido">
+        <h3>{item.titulo || 'Sin título registrado'}</h3>
+        <div className="rc-meta">
+          {codigo && <span className="rc-codigo">{codigo}</span>}
+          {est && (
+            <span className={`rc-pildora rc-estado-${est.variante}`}>
+              <Icono nombre={est.icono} tamano={14} />
+              {est.texto}
+            </span>
+          )}
           {item.comision && <span>{item.comision}</span>}
-          {(item.roles || []).map((r) => (
-            <span key={r} className="rounded-full border px-2 py-0.5" style={{ borderColor: 'var(--acento)', color: 'var(--acento)' }}>
+          {roles.length > 0 && <span className="rc-divisor" aria-hidden="true" />}
+          {roles.map((r) => (
+            <span key={r} className="rc-pildora rc-rol">
               {r}
             </span>
           ))}
-          {item.atribucion === 'concejal' && (
-            <span className="rounded-full border px-2 py-0.5" style={{ borderColor: 'var(--acento)', color: 'var(--acento)' }}>
-              Firmada por el concejal
-            </span>
-          )}
           {item.link && (
-            <a href={item.link} target="_blank" rel="noopener" className="underline" style={{ color: 'var(--acento)' }}>
+            <a href={item.link} target="_blank" rel="noopener" className="rc-enlace">
               Ver texto del acuerdo
             </a>
           )}
         </div>
       </div>
     </li>
+  );
+}
+
+const TRAZOS = {
+  lupa: <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>,
+  descarga: <><path d="M12 4v11" /><path d="M7 10.5l5 5 5-5" /><path d="M5 19.5h14" /></>,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><path d="M12 7.5v.5" /></>,
+  archivo: <><rect x="3.5" y="4.5" width="17" height="4" rx="1" /><path d="M5 8.5v10a1 1 0 001 1h12a1 1 0 001-1v-10" /><path d="M10 12.5h4" /></>,
+  calendario: <><rect x="4" y="5.5" width="16" height="14.5" rx="1.5" /><path d="M4 10h16" /><path d="M8.5 3.5v4" /><path d="M15.5 3.5v4" /></>,
+  punto: <circle cx="12" cy="12" r="4" fill="currentColor" />,
+};
+
+function Icono({ nombre, tamano }) {
+  return (
+    <svg className="rc-icono" width={tamano} height={tamano} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {TRAZOS[nombre]}
+    </svg>
   );
 }
 
